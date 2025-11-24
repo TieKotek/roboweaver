@@ -1,0 +1,67 @@
+<mujoco model="rbtheron">
+  <compiler angle="radian"/>
+
+  <asset>
+    <mesh name="theron_base_v4" content_type="model/stl" file="assets/theron_base_v4.stl"/>
+  </asset>
+
+  <worldbody>
+    <body name="base_link" pos="0 0 0">
+      <freejoint/>
+      
+    <geom pos="0 0 0.0762" quat="1 0 0 0" type="mesh" rgba="0.2 0.2 0.2 1" mesh="theron_base_v4"/>
+    <body name="right_wheel_link" pos="0 -0.2516 0.0762">
+      <inertial pos="0 0 0" quat="0.5 0.5 -0.5 0.5" mass="1" diaginertia="0.00290322 0.00150369 0.00150369"/>
+      <joint name="right_wheel_joint" pos="0 0 0" axis="0 1 0" actuatorfrcrange="-100 100"/>
+      <geom size="0.0762 0.0125" quat="0.707107 0.707107 0 0" type="cylinder"/>
+    </body>
+    <body name="left_wheel_link" pos="0 0.2516 0.0762">
+      <inertial pos="0 0 0" quat="0.5 0.5 -0.5 0.5" mass="1" diaginertia="0.00290322 0.00150369 0.00150369"/>
+      <joint name="left_wheel_joint" pos="0 0 0" axis="0 1 0" actuatorfrcrange="-100 100"/>
+      <geom size="0.0762 0.0125" quat="0.707107 0.707107 0 0" type="cylinder"/>
+    </body>
+    <body name="front_left_support" pos="0.235 0.1825 0.121">
+      <inertial pos="0 0 0" quat="0.5 0.5 -0.5 0.5" mass="1.5" diaginertia="7.5e-05 5e-05 5e-05"/>
+      <joint name="front_left_joint_support" pos="0 0 0" axis="0 0 1" actuatorfrcrange="-100 100" damping="0.8" frictionloss="0.01"/>
+      <body name="front_left_wheel" pos="-0.033 0 -0.071">
+        <inertial pos="0 0 0" quat="0.5 0.5 -0.5 0.5" mass="0.25" diaginertia="0.0003125 0.000169271 0.000169271"/>
+        <joint name="front_left_joint_wheel" pos="0 0 0" axis="0 1 0" actuatorfrcrange="-0.01 0.01"/>
+        <geom size="0.05 0.0125" quat="0.707107 0.707107 0 0" type="cylinder"/>
+      </body>
+    </body>
+    <body name="front_right_support" pos="0.235 -0.1825 0.121">
+      <inertial pos="0 0 0" quat="0.5 0.5 -0.5 0.5" mass="1.5" diaginertia="7.5e-05 5e-05 5e-05"/>
+      <joint name="front_right_joint_support" pos="0 0 0" axis="0 0 1" actuatorfrcrange="-100 100" damping="0.8" frictionloss="0.01"/>
+      <body name="front_right_wheel" pos="-0.033 0 -0.071">
+        <inertial pos="0 0 0" quat="0.5 0.5 -0.5 0.5" mass="0.25" diaginertia="0.0003125 0.000169271 0.000169271"/>
+        <joint name="front_right_joint_wheel" pos="0 0 0" axis="0 1 0" actuatorfrcrange="-0.01 0.01"/>
+        <geom size="0.05 0.0125" quat="0.707107 0.707107 0 0" type="cylinder"/>
+      </body>
+    </body>
+    <body name="rear_left_support" pos="-0.235 0.1825 0.121">
+      <inertial pos="0 0 0" quat="0.5 0.5 -0.5 0.5" mass="1.5" diaginertia="7.5e-05 5e-05 5e-05"/>
+      <joint name="rear_left_joint_support" pos="0 0 0" axis="0 0 1" actuatorfrcrange="-100 100" damping="0.8" frictionloss="0.01"/>
+      <body name="rear_left_wheel" pos="-0.033 0 -0.071">
+        <inertial pos="0 0 0" quat="0.5 0.5 -0.5 0.5" mass="0.25" diaginertia="0.0003125 0.000169271 0.000169271"/>
+        <joint name="rear_left_joint_wheel" pos="0 0 0" axis="0 1 0" actuatorfrcrange="-0.01 0.01"/>
+        <geom size="0.05 0.0125" quat="0.707107 0.707107 0 0" type="cylinder"/>
+      </body>
+    </body>
+    <body name="rear_right_support" pos="-0.235 -0.1825 0.121">
+      <inertial pos="0 0 0" quat="0.5 0.5 -0.5 0.5" mass="1.5" diaginertia="7.5e-05 5e-05 5e-05"/>
+      <joint name="rear_right_joint_support" pos="0 0 0" axis="0 0 1" actuatorfrcrange="-100 100" damping="0.8" frictionloss="0.01"/>
+      <body name="rear_right_wheel" pos="-0.033 0 -0.071">
+        <inertial pos="0 0 0" quat="0.5 0.5 -0.5 0.5" mass="0.25" diaginertia="0.0003125 0.000169271 0.000169271"/>
+        <joint name="rear_right_joint_wheel" pos="0 0 0" axis="0 1 0" actuatorfrcrange="-0.01 0.01"/>
+        <geom size="0.05 0.0125" quat="0.707107 0.707107 0 0" type="cylinder"/>
+      </body>
+    </body>
+  
+    </body>
+    </worldbody>
+
+  <actuator>
+    <velocity name="right_wheel_vel" joint="right_wheel_joint" kv="25" ctrlrange="-5 5"/>
+    <velocity name="left_wheel_vel" joint="left_wheel_joint" kv="25" ctrlrange="-5 5"/>
+  </actuator>
+</mujoco>

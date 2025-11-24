@@ -26,6 +26,7 @@ ROBOT_CLASSES = {
     "piper": PiperController,
 }
 
+# Optional: Only when controller needs URDF files
 ROBOT_URDFS = {
     "piper": "piper_control/agilex_piper/piper_description.urdf",
 }
@@ -313,29 +314,41 @@ def main():
         robots_conf = config.get("robots", [])
         
         if not robots_conf and "sequence" in config:
-             robots_conf = [{"name": "piper", "type": "piper", "sequence": config["sequence"]}]
+            raise ValueError("No robots defined in config.")
 
         for r_conf in robots_conf:
-            r_type = r_conf.get("type", "piper")
+            r_type = r_conf.get("type", None)
             r_name = r_conf.get("name", "robot")
+            
+            if not r_type:
+                print(f"Skipping robot with no type: {r_name}")
+                continue
             
             if r_type not in ROBOT_CLASSES:
                 print(f"Skipping unknown robot type: {r_type}")
                 continue
                 
             ControllerClass = ROBOT_CLASSES[r_type]
-            urdf_path = ROBOT_URDFS[r_type]
+            urdf_path = ROBOT_URDFS.get(r_type, None)
             
             # Pass base_pos to controller for coordinate transform
             base_pos = np.array(r_conf.get("base_pos", [0,0,0]))
             
-            ctrl = ControllerClass(
-                model, 
-                data, 
-                robot_name=r_name, 
-                urdf_path=urdf_path,
-                base_pos=base_pos
-            )
+            if urdf_path:
+                ctrl = ControllerClass(
+                    model, 
+                    data, 
+                    robot_name=r_name, 
+                    urdf_path=urdf_path,
+                    base_pos=base_pos
+                )
+            else:
+                ctrl = ControllerClass(
+                    model,
+                    data,
+                    robot_name=r_name,
+                    base_pos=base_pos
+                )
             
             t = RobotThread(ctrl, r_conf.get("sequence", []))
             threads.append(t)

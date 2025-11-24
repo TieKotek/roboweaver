@@ -85,17 +85,17 @@ Actions are dispatched dynamically to the robot controller.
 
 ## Developer Guide: Adding New Robots
 
-The framework is designed to be agnostic to the robot type. To add a new robot (e.g., a mobile base `wheel`):
+The framework is designed to be agnostic to the robot type. To add a new robot:
 
 ### Step 1: Create the Controller Module
-Create a directory (e.g., `wheel_control/`) and a controller file (e.g., `wheel_controller.py`).
+Create a directory (e.g., `XXrobot_control/`) and a controller file (e.g., `XXrobot_controller.py`).
 
 Your controller class **must** inherit from `BaseRobotController` and implement the abstract methods.
 
 ```python
 from common.robot_api import BaseRobotController, RobotState
 
-class WheelController(BaseRobotController):
+class XXrobotController(BaseRobotController):
     def __init__(self, model, data, robot_name, base_pos=None, base_quat=None, **kwargs):
         super().__init__(model, data, robot_name, base_pos, base_quat)
         # Initialize your specific kinematics or actuators here
@@ -120,31 +120,32 @@ Open `run_robots.py` and register your new robot type in the global dictionaries
 
 ```python
 # Import your new controller
-from wheel_control.wheel_controller import WheelController
+from XXrobot_control.XXrobot_controller import XXrobotController
 
 ROBOT_CLASSES = {
     "piper": PiperController,
-    "wheel": WheelController,  # <--- Add this
+    "XXrobot": XXrobotController,  # <--- Add this
 }
 
+# Optional: Only when controller needs URDF files
 ROBOT_URDFS = {
     "piper": "piper_control/agilex_piper/piper_description.urdf",
-    "wheel": "wheel_control/assets/wheel.urdf", # <--- Add this
+    "XXrobot": "XXrobot_control/assets/XXrobot.urdf", # <--- Add this
 }
 
 ROBOT_XML_TEMPLATES = {
     "piper": "piper_control/agilex_piper/piper.xml",
-    "wheel": "wheel_control/assets/wheel.xml",  # <--- Add this
+    "XXrobot": "XXrobot_control/assets/XXrobot.xml",  # <--- Add this
 }
 ```
 
 ### Step 4: Usage
-You can now use `"type": "wheel"` in your JSON configuration file!
+You can now use `"type": "XXrobot"` in your JSON configuration file!
 
 ```json
 {
   "name": "my_agv",
-  "type": "wheel",
+  "type": "XXrobot",
   "base_pos": [1, 1, 0],
   "sequence": [
     { "action": "navigate_to", "parameters": { "x": 2, "y": 2, "theta": 1.57 } }
