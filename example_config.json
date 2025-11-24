@@ -1,0 +1,243 @@
+{
+  "description": "Dual-Arm Pick and Place Demo",
+  "scene": {
+    "friction": [2.0, 0.005, 0.0001],
+    "solimp": [0.95, 0.99, 0.001],
+    "solref": [0.004, 1],
+    "objects": [
+      {
+        "name": "left_table",
+        "type": "box",
+        "size": [0.2, 0.2, 0.05],
+        "pos": [0.4, 0.4, 0.025],
+        "rgba": [0.6, 0.4, 0.2, 1],
+        "movable": false
+      },
+      {
+        "name": "left_block",
+        "type": "box",
+        "size": [0.02, 0.02, 0.02],
+        "pos": [0.4, 0.4, 0.09],
+        "rgba": [0, 0.8, 0.2, 1],
+        "movable": true,
+        "mass": 0.01,
+        "friction": [5.0, 0.1, 0.001]
+      },
+      {
+        "name": "left_bin",
+        "type": "box",
+        "size": [0.05, 0.05, 0.02],
+        "pos": [0.0, 0.8, 0.02],
+        "rgba": [0.2, 0.2, 0.8, 1],
+        "movable": false
+      },
+      {
+        "name": "right_table",
+        "type": "box",
+        "size": [0.2, 0.2, 0.05],
+        "pos": [0.4, -0.4, 0.025],
+        "rgba": [0.6, 0.4, 0.2, 1],
+        "movable": false
+      },
+      {
+        "name": "right_block",
+        "type": "box",
+        "size": [0.02, 0.02, 0.02],
+        "pos": [0.4, -0.4, 0.09],
+        "rgba": [0, 0.8, 0.2, 1],
+        "movable": true,
+        "mass": 0.01,
+        "friction": [5.0, 0.1, 0.001]
+      },
+      {
+        "name": "right_bin",
+        "type": "box",
+        "size": [0.05, 0.05, 0.02],
+        "pos": [0.0, -0.8, 0.02],
+        "rgba": [0.2, 0.2, 0.8, 1],
+        "movable": false
+      }
+    ]
+  },
+  "robots": [
+    {
+      "name": "left_arm",
+      "type": "piper",
+      "base_pos": [0, 0.4, 0],
+      "sequence": [
+        {
+          "action": "open_gripper",
+          "description": "Ensure gripper is open at start"
+        },
+        {
+          "action": "move_cartesian",
+          "description": "Move to approach position above left block (World Coords)",
+          "parameters": {
+            "pose": [0.4, 0.4, 0.25],
+            "duration": 3.0,
+            "orientation_needed": false
+          }
+        },
+        {
+          "action": "move_cartesian",
+          "description": "Move down to left block position (World Coords)",
+          "parameters": {
+            "pose": [0.4, 0.4, 0.09],
+            "duration": 2.0,
+            "orientation_needed": false
+          }
+        },
+        {
+          "action": "close_gripper",
+          "description": "Grasp the left block"
+        },
+        {
+          "action": "idle",
+          "description": "Ensure grasp is solid",
+          "parameters": { "duration": 0.5 }
+        },
+        {
+          "action": "move_cartesian",
+          "description": "Lift the left block up (World Coords)",
+          "parameters": {
+            "pose": [0.4, 0.4, 0.25],
+            "duration": 2.0,
+            "orientation_needed": false
+          }
+        },
+        {
+          "action": "move_cartesian",
+          "description": "Move towards the left bin (World Coords)",
+          "parameters": {
+            "pose": [0.0, 0.8, 0.25],
+            "duration": 3.0,
+            "orientation_needed": false
+          }
+        },
+        {
+          "action": "move_cartesian",
+          "description": "Lower left block into bin (World Coords)",
+          "parameters": {
+            "pose": [0.0, 0.8, 0.15],
+            "duration": 2.0,
+            "orientation_needed": false
+          }
+        },
+        {
+          "action": "open_gripper",
+          "description": "Release the left block"
+        },
+        {
+          "action": "idle",
+          "description": "Wait for block to drop",
+          "parameters": { "duration": 0.5 }
+        },
+        {
+          "action": "move_cartesian",
+          "description": "Move back up (World Coords)",
+          "parameters": {
+            "pose": [0.0, 0.8, 0.25],
+            "duration": 2.0,
+            "orientation_needed": false
+          }
+        },
+        {
+          "action": "home",
+          "description": "Return to home position"
+        }
+      ]
+    },
+    {
+      "name": "right_arm",
+      "type": "piper",
+      "base_pos": [0, -0.4, 0],
+      "sequence": [
+        {
+          "action": "idle",
+          "description": "Wait for left arm to start",
+          "parameters": { "duration": 1.0 }
+        },
+        {
+          "action": "open_gripper",
+          "description": "Ensure gripper is open at start"
+        },
+        {
+          "action": "move_cartesian",
+          "description": "Move to approach position above right block (World Coords)",
+          "parameters": {
+            "pose": [0.4, -0.4, 0.25],
+            "duration": 3.0,
+            "orientation_needed": false
+          }
+        },
+        {
+          "action": "move_cartesian",
+          "description": "Move down to right block position (World Coords)",
+          "parameters": {
+            "pose": [0.4, -0.4, 0.09],
+            "duration": 2.0,
+            "orientation_needed": false
+          }
+        },
+        {
+          "action": "close_gripper",
+          "description": "Grasp the right block"
+        },
+        {
+          "action": "idle",
+          "description": "Ensure grasp is solid",
+          "parameters": { "duration": 0.5 }
+        },
+        {
+          "action": "move_cartesian",
+          "description": "Lift the right block up (World Coords)",
+          "parameters": {
+            "pose": [0.4, -0.4, 0.25],
+            "duration": 2.0,
+            "orientation_needed": false
+          }
+        },
+        {
+          "action": "move_cartesian",
+          "description": "Move towards the right bin (World Coords)",
+          "parameters": {
+            "pose": [0.0, -0.8, 0.25],
+            "duration": 3.0,
+            "orientation_needed": false
+          }
+        },
+        {
+          "action": "move_cartesian",
+          "description": "Lower right block into bin (World Coords)",
+          "parameters": {
+            "pose": [0.0, -0.8, 0.15],
+            "duration": 2.0,
+            "orientation_needed": false
+          }
+        },
+        {
+          "action": "open_gripper",
+          "description": "Release the right block"
+        },
+        {
+          "action": "idle",
+          "description": "Wait for block to drop",
+          "parameters": { "duration": 0.5 }
+        },
+        {
+          "action": "move_cartesian",
+          "description": "Move back up (World Coords)",
+          "parameters": {
+            "pose": [0.0, -0.8, 0.25],
+            "duration": 2.0,
+            "orientation_needed": false
+          }
+        },
+        {
+          "action": "home",
+          "description": "Return to home position"
+        }
+      ]
+    }
+  ]
+}
