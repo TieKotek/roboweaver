@@ -1,0 +1,27 @@
+{
+  "description": "RB-Theron Wheel Controller Test",
+  "scene": {
+    "friction": [1.0, 0.005, 0.0001],
+    "objects": [
+      {"name": "marker1", "pos": [1, 0, 0], "size": [0.1, 0.1, 0.01], "rgba": [1, 0, 0, 1], "movable": false}
+    ]
+  },
+  "robots": [
+    {
+      "name": "theron_bot",
+      "type": "rbtheron",
+      "base_pos": [0, 0, 0.1],
+      "sequence": [
+        { "action": "move_straight", "parameters": { "distance": 1.0, "direction": "forward" } },
+        { "action": "idle", "parameters": { "duration": 1.0 } },
+        { "action": "turn", "parameters": { "angle": 90.0 } },
+        { "action": "idle", "parameters": { "duration": 1.0 } },
+        { "action": "move_straight", "parameters": { "distance": 1.0, "direction": "forward" } },
+        { "action": "idle", "parameters": { "duration": 1.0 } },
+        { "action": "turn", "parameters": { "angle": -90.0 } },
+        { "action": "idle", "parameters": { "duration": 1.0 } },
+        { "action": "move_straight", "parameters": { "distance": 1.0, "direction": "backward" } }
+      ]
+    }
+  ]
+}

@@ -21,9 +21,11 @@ import numpy as np
 # --- Robot Registry ---
 from common.robot_api import BaseRobotController
 from piper_control.piper_controller import PiperController
+from wheel_control.wheel_controller import WheelController
 
 ROBOT_CLASSES = {
     "piper": PiperController,
+    "rbtheron": WheelController,
 }
 
 # Optional: Only when controller needs URDF files
@@ -33,6 +35,7 @@ ROBOT_URDFS = {
 
 ROBOT_XML_TEMPLATES = {
     "piper": "piper_control/agilex_piper/piper.xml",
+    "rbtheron": "wheel_control/rbtheron/rbtheron.xml",
 }
 
 # --- Scene Builder ---
