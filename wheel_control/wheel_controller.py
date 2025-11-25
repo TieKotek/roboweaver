@@ -16,7 +16,7 @@ class WheelController(BaseRobotController):
         self.right_actuator_name = f"{robot_name}_right_wheel_vel"
         self.base_body_name = f"{robot_name}_base_link"
         self.rotate_wheel_speed = 10.0  # rad/s
-        self.move_wheel_speed = 15.0    # rad/s
+        self.move_wheel_speed = 30.0    # rad/s
 
         try:
             self.left_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, self.left_actuator_name)
@@ -70,60 +70,129 @@ class WheelController(BaseRobotController):
                 break
             time.sleep(self.control_dt)
 
-    def action_turn(self, angle: float):
+    def action_turn(self, target_yaw: float, direction: str = "auto"):
         """
-        Turn in place.
+        Turn in place to an absolute yaw angle with deceleration and fine-tuning.
         Args:
-            angle: Degrees (-180 to 180). Positive = CCW (Left), Negative = CW (Right)
+            target_yaw: Target absolute yaw in degrees (-180 to 180).
+            direction: "cw" (clockwise), "ccw" (counter-clockwise), or "auto" (shortest path).
         """
         if self.emergency_stop_flag: return
 
-        target_rad = np.deg2rad(angle)
-        speed = self.rotate_wheel_speed
+        target_rad = np.deg2rad(target_yaw)
+        base_speed = self.rotate_wheel_speed
         
-        # Determine direction
-        # Differential drive: 
-        # Left turn (positive angle): Left wheel back (-), Right wheel fwd (+)
-        # Right turn (negative angle): Left wheel fwd (+), Right wheel back (-)
-        if angle > 0:
-            left_cmd = -speed
-            right_cmd = speed
-        else:
-            left_cmd = speed
-            right_cmd = -speed
-            
+        # Thresholds
+        DECEL_THRESHOLD = np.deg2rad(20.0)
+        STOP_THRESHOLD = np.deg2rad(0.05)
+        MIN_SPEED = 2.0
+
         _, _, start_yaw = self._get_pose()
-        # Handle wrapping for target calculation isn't strictly necessary if we track delta
-        # But tracking accumulated delta is safer
+        
+        # Calculate required delta angle based on direction
+        diff = target_rad - start_yaw
+        
+        # Normalize to [-pi, pi]
+        diff = (diff + np.pi) % (2 * np.pi) - np.pi
+
+        if direction == "ccw":
+            if diff < 0: diff += 2 * np.pi
+        elif direction == "cw":
+            if diff > 0: diff -= 2 * np.pi
+        # "auto" uses the shortest path (diff as is)
+
+        turn_angle = diff
+        turn_abs = abs(turn_angle)
+        turn_sign = np.sign(turn_angle)
         
         accumulated_yaw = 0.0
         last_yaw = start_yaw
-        target_abs = abs(target_rad)
         
-        print(f"[{self.robot_name}] Turning {angle} deg...")
-        self._set_velocity(left_cmd, right_cmd)
+        print(f"[{self.robot_name}] Turning to {target_yaw} deg ({direction}). Delta: {np.rad2deg(turn_angle):.2f} deg")
         
-        while abs(accumulated_yaw) < target_abs:
+        # --- Phase 1: Main Turn with Deceleration ---
+        while abs(accumulated_yaw) < turn_abs:
             if self.emergency_stop_flag: 
                 self._set_velocity(0, 0)
                 return
 
             _, _, curr_yaw = self._get_pose()
-            
-            # Calculate shortest delta
             delta = curr_yaw - last_yaw
-            # Normalize delta to [-pi, pi]
             delta = (delta + np.pi) % (2 * np.pi) - np.pi
-            
             accumulated_yaw += delta
             last_yaw = curr_yaw
+
+            remaining = turn_abs - abs(accumulated_yaw)
+            
+            if remaining <= 0:
+                break
+
+            # Speed Control
+            current_speed = base_speed
+            if remaining < DECEL_THRESHOLD:
+                ratio = remaining / DECEL_THRESHOLD
+                current_speed = MIN_SPEED + (base_speed - MIN_SPEED) * ratio
+            
+            # Set Velocity based on turn direction
+            if turn_sign > 0: # CCW
+                self._set_velocity(-current_speed, current_speed)
+            else: # CW
+                self._set_velocity(current_speed, -current_speed)
             
             time.sleep(self.control_dt)
             
-        # Stop
         self._set_velocity(0, 0)
         self._wait_for_stop()
-        print(f"[{self.robot_name}] Turn complete.")
+
+        # --- Phase 2: Fine-Tuning (Targeting Absolute Yaw) ---
+        MAX_RETRIES = 5
+        FINE_SPEED = 0.2
+        
+        for attempt in range(MAX_RETRIES):
+            _, _, curr_yaw = self._get_pose()
+            
+            # Calculate shortest error to target
+            error = target_rad - curr_yaw
+            error = (error + np.pi) % (2 * np.pi) - np.pi
+            
+            if abs(error) <= STOP_THRESHOLD:
+                break
+                
+            # Determine correction direction (shortest path)
+            if error > 0: # Need CCW
+                l_cmd, r_cmd = -FINE_SPEED, FINE_SPEED
+            else: # Need CW
+                l_cmd, r_cmd = FINE_SPEED, -FINE_SPEED
+                
+            self._set_velocity(l_cmd, r_cmd)
+            
+            # Correction Loop
+            while True:
+                if self.emergency_stop_flag: return
+                
+                _, _, curr_yaw = self._get_pose()
+                
+                prev_error = error
+                error = target_rad - curr_yaw
+                error = (error + np.pi) % (2 * np.pi) - np.pi
+                
+                if abs(error) <= STOP_THRESHOLD:
+                    break
+                
+                if np.sign(error) != np.sign(prev_error):
+                    break
+                    
+                time.sleep(self.control_dt)
+                
+            self._set_velocity(0, 0)
+            self._wait_for_stop()
+            
+            # Check final error for this attempt
+            _, _, curr_yaw = self._get_pose()
+            error = target_rad - curr_yaw
+            error = (error + np.pi) % (2 * np.pi) - np.pi
+
+        print(f"[{self.robot_name}] Turn complete. Final Abs Error: {np.rad2deg(error):.4f} deg")
 
     def action_move_straight(self, distance: float, direction: str = "forward"):
         """

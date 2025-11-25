@@ -38,6 +38,15 @@ ROBOT_XML_TEMPLATES = {
     "rbtheron": "wheel_control/rbtheron/rbtheron.xml",
 }
 
+# --- Helper Functions ---
+
+def yaw_to_quat(yaw_deg: float) -> List[float]:
+    """Convert yaw angle (degrees) to quaternion [w, x, y, z]."""
+    yaw_rad = np.deg2rad(yaw_deg)
+    w = np.cos(yaw_rad / 2.0)
+    z = np.sin(yaw_rad / 2.0)
+    return [w, 0.0, 0.0, z]
+
 # --- Scene Builder ---
 
 class SceneBuilder:
@@ -95,17 +104,24 @@ class SceneBuilder:
         # 2. Add Robots
         robots_conf = config.get("robots", [])
         if not robots_conf and "sequence" in config:
-            robots_conf = [{
-                "name": "piper", 
-                "type": "piper", 
-                "base_pos": config.get("scene", {}).get("robot_base", [0,0,0]),
-                "sequence": config["sequence"]
-            }]
+            robots_conf = [
+                {
+                    "name": "piper", 
+                    "type": "piper", 
+                    "base_pos": config.get("scene", {}).get("robot_base", [0,0,0]),
+                    "base_yaw": config.get("scene", {}).get("robot_yaw", 0.0),
+                    "sequence": config["sequence"]
+                }
+            ]
 
         for robot in robots_conf:
             r_type = robot.get("type", "piper")
             r_name = robot.get("name", "robot")
             base_pos = robot.get("base_pos", [0,0,0])
+            base_yaw = robot.get("base_yaw", 0.0)
+            
+            # Calculate quaternion from yaw
+            base_quat = yaw_to_quat(base_yaw)
 
             if r_type not in ROBOT_XML_TEMPLATES:
                 print(f"Warning: Unknown robot type '{r_type}', skipping.")
@@ -114,7 +130,8 @@ class SceneBuilder:
             self._merge_robot_xml(
                 ROBOT_XML_TEMPLATES[r_type], 
                 r_name, 
-                base_pos, 
+                base_pos,
+                base_quat,
                 scene_root
             )
 
@@ -129,7 +146,7 @@ class SceneBuilder:
         self.temp_files.append(temp_path)
         return temp_path
 
-    def _merge_robot_xml(self, xml_path, name_prefix, pos, scene_root):
+    def _merge_robot_xml(self, xml_path, name_prefix, pos, quat, scene_root):
         """Deep merge of robot XML components."""
         tree = ET.parse(xml_path)
         root = tree.getroot()
@@ -204,6 +221,10 @@ class SceneBuilder:
                 new_body = self._copy_elem(body)
                 rename_attrs(new_body) # Apply prefix to body/joint names
                 new_body.set("pos", f"{pos[0]} {pos[1]} {pos[2]}")
+                
+                # Set quaternion (orientation)
+                new_body.set("quat", f"{quat[0]} {quat[1]} {quat[2]} {quat[3]}")
+                
                 target_wb.append(new_body)
 
         # 4. Actuators
@@ -334,8 +355,10 @@ def main():
             ControllerClass = ROBOT_CLASSES[r_type]
             urdf_path = ROBOT_URDFS.get(r_type, None)
             
-            # Pass base_pos to controller for coordinate transform
+            # Pass base_pos and base_quat to controller
             base_pos = np.array(r_conf.get("base_pos", [0,0,0]))
+            base_yaw = r_conf.get("base_yaw", 0.0)
+            base_quat = np.array(yaw_to_quat(base_yaw))
             
             if urdf_path:
                 ctrl = ControllerClass(
@@ -343,14 +366,16 @@ def main():
                     data, 
                     robot_name=r_name, 
                     urdf_path=urdf_path,
-                    base_pos=base_pos
+                    base_pos=base_pos,
+                    base_quat=base_quat
                 )
             else:
                 ctrl = ControllerClass(
                     model,
                     data,
                     robot_name=r_name,
-                    base_pos=base_pos
+                    base_pos=base_pos,
+                    base_quat=base_quat
                 )
             
             t = RobotThread(ctrl, r_conf.get("sequence", []))
