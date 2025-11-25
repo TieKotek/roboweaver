@@ -61,7 +61,7 @@
     </worldbody>
 
   <actuator>
-    <velocity name="right_wheel_vel" joint="right_wheel_joint" kv="50" ctrlrange="-50 50"/>
-    <velocity name="left_wheel_vel" joint="left_wheel_joint" kv="50" ctrlrange="-50 50"/>
+    <velocity name="right_wheel_vel" joint="right_wheel_joint" kv="100" ctrlrange="-50 50"/>
+    <velocity name="left_wheel_vel" joint="left_wheel_joint" kv="100" ctrlrange="-50 50"/>
   </actuator>
 </mujoco>

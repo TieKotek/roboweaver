@@ -196,35 +196,56 @@ class WheelController(BaseRobotController):
 
     def action_move_straight(self, distance: float, direction: str = "forward"):
         """
-        Move straight.
+        Move straight with closed-loop heading control.
         Args:
             distance: Meters to move.
             direction: "forward" or "backward".
         """
         if self.emergency_stop_flag: return
 
-        speed = self.move_wheel_speed
+        base_speed = self.move_wheel_speed
         if direction == "backward":
-            speed = -speed
+            base_speed = -base_speed
             
-        start_x, start_y, _ = self._get_pose()
+        # Heading Control Gains
+        Kp = 20.0 
+            
+        start_x, start_y, start_yaw = self._get_pose()
         start_pos = np.array([start_x, start_y])
+        target_yaw = start_yaw # Maintain initial heading
         
-        print(f"[{self.robot_name}] Moving straight {distance}m ({direction})...")
-        self._set_velocity(speed, speed)
+        print(f"[{self.robot_name}] Moving straight {distance}m ({direction}) with Heading Control...")
+        
+        # Initial command
+        self._set_velocity(base_speed, base_speed)
         
         while True:
             if self.emergency_stop_flag:
                 self._set_velocity(0, 0)
                 return
 
-            curr_x, curr_y, _ = self._get_pose()
+            curr_x, curr_y, curr_yaw = self._get_pose()
             curr_pos = np.array([curr_x, curr_y])
             
+            # 1. Check Distance
             dist_traveled = np.linalg.norm(curr_pos - start_pos)
-            
             if dist_traveled >= distance:
                 break
+            
+            # 2. Calculate Heading Error
+            yaw_error = curr_yaw - target_yaw
+            # Normalize to [-pi, pi]
+            yaw_error = (yaw_error + np.pi) % (2 * np.pi) - np.pi
+            
+            # 3. Apply P-Control
+            # If error > 0 (Left bias), we need CW turn (Left > Right)
+            # If error < 0 (Right bias), we need CCW turn (Right > Left)
+            correction = Kp * yaw_error
+            
+            left_cmd = base_speed + correction
+            right_cmd = base_speed - correction
+            
+            self._set_velocity(left_cmd, right_cmd)
                 
             time.sleep(self.control_dt)
             
