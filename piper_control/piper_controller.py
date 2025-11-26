@@ -12,14 +12,20 @@ from typing import Optional, Tuple, List
 
 # Import the common interface
 from common.robot_api import BaseRobotController, RobotState
+from dataclasses import dataclass
+
+@dataclass
+class PiperState(RobotState):
+    joint_positions: Optional[np.ndarray] = None
+    end_effector_pose: Optional[np.ndarray] = None
 
 class PiperController(BaseRobotController):
     """
     Controller specifically for the AgileX PiPER 6-DOF Arm.
     """
     
-    def __init__(self, model: mujoco.MjModel, data: mujoco.MjData, robot_name: str = "piper", urdf_path: str = "agilex_piper/piper_description.urdf", base_pos: np.ndarray = None, base_quat: np.ndarray = None):
-        super().__init__(model, data, robot_name, base_pos, base_quat)
+    def __init__(self, model: mujoco.MjModel, data: mujoco.MjData, robot_name: str = "piper", urdf_path: str = "agilex_piper/piper_description.urdf", base_pos: np.ndarray = None, base_quat: np.ndarray = None, log_dir: str = None):
+        super().__init__(model, data, robot_name, base_pos, base_quat, log_dir)
         
         self.prefix = robot_name
         # Initialize Kinematics Helper
@@ -30,12 +36,32 @@ class PiperController(BaseRobotController):
 
     # --- Interface Implementation ---
 
-    def get_robot_state(self) -> RobotState:
-        return RobotState(
+    def get_robot_state(self) -> PiperState:
+        return PiperState(
             timestamp=time.time(),
             joint_positions=self._get_joint_positions(),
             end_effector_pose=self.kinematics.forward_kinematics(self._get_joint_positions())
         )
+
+    def format_state(self) -> str:
+        """Custom format with degrees for orientation."""
+        state = self.get_robot_state()
+        lines = [f"[{self.robot_name}] State:"]
+        lines.append(f"  Timestamp: {state.timestamp:.3f}")
+        
+        if state.joint_positions is not None:
+            lines.append(f"  Joints: {np.array2string(state.joint_positions, precision=3, suppress_small=True)}")
+
+        if state.end_effector_pose is not None:
+            pos = state.end_effector_pose[:3]
+            euler_rad = state.end_effector_pose[3:]
+            euler_deg = np.rad2deg(euler_rad)
+            lines.append(f"  EE Pos: {np.array2string(pos, precision=3, suppress_small=True)}")
+            lines.append(f"  EE Euler (Deg): {np.array2string(euler_deg, precision=3)}")
+        return "\n".join(lines)
+
+    def print_state(self):
+        print(self.format_state())
 
     # --- Action Handlers (Called by run_robots.py via execute_action) ---
 
@@ -49,8 +75,10 @@ class PiperController(BaseRobotController):
         target_pos_world = np.array(pose[:3])
         # Support full pose (pos+euler)
         if len(pose) > 3:
-            target_euler_world = np.array(pose[3:])
-            r_world = R.from_euler('xyz', target_euler_world)
+            # Input Euler is in DEGREES -> Convert to Radians
+            target_euler_deg = np.array(pose[3:])
+            target_euler_rad = np.deg2rad(target_euler_deg)
+            r_world = R.from_euler('xyz', target_euler_rad)
         else:
             r_world = R.identity()
 
@@ -80,7 +108,6 @@ class PiperController(BaseRobotController):
             print(f"[{self.robot_name}] IK Failed. Target unreachable.")
             return
 
-        # print(f"DEBUG: [{self.robot_name}] IK Result: {target_joints}")
         self._move_to_joints(target_joints, duration)
 
     def action_open_gripper(self):
@@ -240,7 +267,6 @@ class PiperKinematics:
         self.gripper_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, self.gripper_name)
         
         # Actuator IDs might differ from joint IDs
-        # DEBUG PRINT
         self.actuator_ids = []
         for n in self.joint_names:
             aid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, n)

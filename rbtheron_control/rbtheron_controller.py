@@ -2,13 +2,18 @@ import time
 import numpy as np
 import mujoco
 from common.robot_api import BaseRobotController, RobotState
+from dataclasses import dataclass
 
-class WheelController(BaseRobotController):
+@dataclass
+class RbtheronState(RobotState):
+    global_pose: np.ndarray = None # [x, y, yaw]
+
+class RbtheronController(BaseRobotController):
     """
     Controller for differential drive robots (e.g., RB-Theron).
     """
-    def __init__(self, model, data, robot_name, base_pos=None, base_quat=None, **kwargs):
-        super().__init__(model, data, robot_name, base_pos, base_quat)
+    def __init__(self, model, data, robot_name, base_pos=None, base_quat=None, log_dir=None, **kwargs):
+        super().__init__(model, data, robot_name, base_pos, base_quat, log_dir)
         
         # Identify Actuators
         # SceneBuilder prefixes names with "{robot_name}_"
@@ -31,9 +36,27 @@ class WheelController(BaseRobotController):
         if self.left_id == -1 or self.right_id == -1:
             print(f"[{self.robot_name}] WARNING: Wheel actuators not found!")
 
-    def get_robot_state(self) -> RobotState:
-        # For now, just return a timestamp
-        return RobotState(timestamp=time.time())
+    def get_robot_state(self) -> RbtheronState:
+        x, y, yaw = self._get_pose()
+        return RbtheronState(
+            timestamp=time.time(),
+            global_pose=np.array([x, y, yaw])
+        )
+
+    def format_state(self) -> str:
+        """Custom format for Mobile Base state."""
+        state = self.get_robot_state()
+        # Unpack from state object
+        x, y, yaw = state.global_pose
+        yaw_deg = np.rad2deg(yaw)
+        
+        lines = [f"[{self.robot_name}] State:"]
+        lines.append(f"  Timestamp: {state.timestamp:.3f}")
+        lines.append(f"  Pose (World): x={x:.3f}, y={y:.3f}, yaw={yaw_deg:.3f} deg")
+        return "\n".join(lines)
+
+    def print_state(self):
+        print(self.format_state())
 
     def _get_pose(self):
         """Returns (x, y, yaw) in World Frame."""

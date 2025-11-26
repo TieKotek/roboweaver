@@ -64,6 +64,47 @@ Defines the static environment and global physics parameters.
 - **friction**: `[sliding, torsional, rolling]` (Global default).
 - **objects**: List of static or movable objects (boxes, tables, etc.).
 
+
+#### Global Physics Parameters
+These parameters apply as defaults to all objects in the scene unless overridden by a specific object. They are tuned to improve grasp stability in simulation.
+
+- **friction** (array, optional): **[sliding, torsional, rolling]** friction coefficients.
+  - *Sliding*: Resistance to linear movement (stickiness). Higher values (e.g., 2.0-5.0) help prevent objects from slipping out of the gripper.
+  - *Torsional*: Resistance to rotation around the contact normal. Prevents objects from spinning in the grasp.
+  - *Rolling*: Resistance to rolling.
+  - *Default if unspecified*: `[2.0, 0.005, 0.0001]`
+
+- **solimp** (array, optional): **[dmin, dmax, width, mid, power]** - Solver Impedance.
+  - Controls the stiffness/softness of the contact. Values close to 1 (e.g., `0.95`, `0.99`) make contacts harder and more precise, preventing the gripper from "sinking" into the object.
+  - *Default if unspecified*: `[0.95, 0.99, 0.001]`
+
+- **solref** (array, optional): **[timeconst, dampratio]** - Solver Reference.
+  - *Timeconst*: Time constant for constraint correction. Smaller values (e.g., `0.004`s) mean faster, harder contact correction.
+  - *Dampratio*: Damping ratio. `1` indicates critical damping (no oscillation/bouncing upon contact).
+  - *Default if unspecified*: `[0.004, 1]`
+
+#### Object Definition
+
+Each object in the `objects` list can have the following fields:
+
+- **name** (string, optional): Unique name for the object.
+- **type** (string, optional): Geometry type. Common values: "box", "sphere", "cylinder", "capsule". Default is "box".
+- **size** (array or number, required): Size of the object.
+  - For "box": [x_half_size, y_half_size, z_half_size]
+  - For "sphere": radius
+  - For "cylinder"/"capsule": [radius, half_length]
+- **pos** (array, optional): [x, y, z] position. Default is [0.5, 0, 0.1].
+- **quat** (array, optional): [w, x, y, z] quaternion orientation.
+- **euler** (array, optional): [roll, pitch, yaw] Euler angle orientation.
+- **rgba** (array, optional): [r, g, b, a] color. Default is red [1, 0, 0, 1].
+- **movable** (boolean, optional): If true, the object will be a free joint (physics enabled). If false, it is static. Default is false.
+- **mass** (number, optional): Mass of the object. For small grasping targets, lower mass (e.g., 0.01) improves stability.
+- **friction** (array, optional): Override global friction for this specific object.
+- **solimp** (array, optional): Override global solver impedance for this object.
+- **solref** (array, optional): Override global solver reference for this object.
+
+
+
 ### 2. Robot Configuration
 - **name**: Unique identifier for the robot (e.g., "left_arm"). Used for logging and XML naming.
 - **type**: The class of robot (e.g., "piper"). Must match a registered type in `run_robots.py`.

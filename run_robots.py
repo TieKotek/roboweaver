@@ -21,11 +21,11 @@ import numpy as np
 # --- Robot Registry ---
 from common.robot_api import BaseRobotController
 from piper_control.piper_controller import PiperController
-from wheel_control.wheel_controller import WheelController
+from rbtheron_control.rbtheron_controller import RbtheronController
 
 ROBOT_CLASSES = {
     "piper": PiperController,
-    "rbtheron": WheelController,
+    "rbtheron": RbtheronController,
 }
 
 # Optional: Only when controller needs URDF files
@@ -35,7 +35,7 @@ ROBOT_URDFS = {
 
 ROBOT_XML_TEMPLATES = {
     "piper": "piper_control/agilex_piper/piper.xml",
-    "rbtheron": "wheel_control/rbtheron/rbtheron.xml",
+    "rbtheron": "rbtheron_control/rbtheron/rbtheron.xml",
 }
 
 # --- Helper Functions ---
@@ -305,13 +305,14 @@ class RobotThread(threading.Thread):
         self.controller = controller
         self.sequence = sequence
         self.running = False
+        self.print_state = True
 
     def run(self):
         self.running = True
         print(f"[{self.controller.robot_name}] Started.")
         for step in self.sequence:
             if not self.running: break
-            self.controller.execute_action(step)
+            self.controller.execute_action(step, print_state=self.print_state)
         print(f"[{self.controller.robot_name}] Finished.")
         self.running = False
 
@@ -327,6 +328,12 @@ def main():
     builder = SceneBuilder()
     scene_path = builder.build(config)
     print(f"Generated Scene: {scene_path}")
+
+    # Create Log Directory
+    log_timestamp = time.strftime("%Y%m%d_%H%M%S")
+    log_dir = os.path.join("logs", f"run_{log_timestamp}")
+    os.makedirs(log_dir, exist_ok=True)
+    print(f"Logging to: {log_dir}")
 
     try:
         # 1. Init Physics
@@ -367,7 +374,8 @@ def main():
                     robot_name=r_name, 
                     urdf_path=urdf_path,
                     base_pos=base_pos,
-                    base_quat=base_quat
+                    base_quat=base_quat,
+                    log_dir=log_dir
                 )
             else:
                 ctrl = ControllerClass(
@@ -375,7 +383,8 @@ def main():
                     data,
                     robot_name=r_name,
                     base_pos=base_pos,
-                    base_quat=base_quat
+                    base_quat=base_quat,
+                    log_dir=log_dir
                 )
             
             t = RobotThread(ctrl, r_conf.get("sequence", []))

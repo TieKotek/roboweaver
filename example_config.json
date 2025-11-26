@@ -8,7 +8,7 @@
       {
         "name": "left_table",
         "type": "box",
-        "size": [0.2, 0.2, 0.05],
+        "size": [0.1, 0.1, 0.05],
         "pos": [0.4, 0.4, 0.025],
         "rgba": [0.6, 0.4, 0.2, 1],
         "movable": false
@@ -24,17 +24,9 @@
         "friction": [5.0, 0.1, 0.001]
       },
       {
-        "name": "left_bin",
-        "type": "box",
-        "size": [0.05, 0.05, 0.02],
-        "pos": [0.0, 0.8, 0.02],
-        "rgba": [0.2, 0.2, 0.8, 1],
-        "movable": false
-      },
-      {
         "name": "right_table",
         "type": "box",
-        "size": [0.2, 0.2, 0.05],
+        "size": [0.1, 0.1, 0.05],
         "pos": [0.4, -0.4, 0.025],
         "rgba": [0.6, 0.4, 0.2, 1],
         "movable": false
@@ -48,18 +40,28 @@
         "movable": true,
         "mass": 0.01,
         "friction": [5.0, 0.1, 0.001]
-      },
-      {
-        "name": "right_bin",
-        "type": "box",
-        "size": [0.05, 0.05, 0.02],
-        "pos": [0.0, -0.8, 0.02],
-        "rgba": [0.2, 0.2, 0.8, 1],
-        "movable": false
       }
     ]
   },
   "robots": [
+    {
+        "name": "left_theron_bot",
+        "type": "rbtheron",
+        "base_pos": [0.0, 0.8, 0.0],
+        "base_yaw": 0.0,
+        "sequence": [
+            { "action": "idle", "parameters": { "duration": 20 } }
+        ]
+    },
+    {
+        "name": "right_theron_bot",
+        "type": "rbtheron",
+        "base_pos": [0.0, -0.8, 0.0],
+        "base_yaw": 0.0,
+        "sequence": [
+            { "action": "idle", "parameters": { "duration": 20 } }
+        ]
+    },
     {
       "name": "left_arm",
       "type": "piper",
@@ -71,20 +73,11 @@
         },
         {
           "action": "move_cartesian",
-          "description": "Move to approach position above left block (World Coords)",
-          "parameters": {
-            "pose": [0.4, 0.4, 0.25],
-            "duration": 3.0,
-            "orientation_needed": false
-          }
-        },
-        {
-          "action": "move_cartesian",
           "description": "Move down to left block position (World Coords)",
           "parameters": {
-            "pose": [0.4, 0.4, 0.09],
+            "pose": [0.45, 0.4, 0.1, -90, 60, -180],
             "duration": 2.0,
-            "orientation_needed": false
+            "orientation_needed": true
           }
         },
         {
@@ -100,26 +93,26 @@
           "action": "move_cartesian",
           "description": "Lift the left block up (World Coords)",
           "parameters": {
-            "pose": [0.4, 0.4, 0.25],
+            "pose": [0.4, 0.4, 0.5],
             "duration": 2.0,
             "orientation_needed": false
           }
         },
         {
           "action": "move_cartesian",
-          "description": "Move towards the left bin (World Coords)",
+          "description": "Move towards theron_bot (World Coords)",
           "parameters": {
-            "pose": [0.0, 0.8, 0.25],
+            "pose": [0.0, 0.8, 0.5],
             "duration": 3.0,
             "orientation_needed": false
           }
         },
         {
           "action": "move_cartesian",
-          "description": "Lower left block into bin (World Coords)",
+          "description": "Lower left block into theron_bot (World Coords)",
           "parameters": {
-            "pose": [0.0, 0.8, 0.15],
-            "duration": 2.0,
+            "pose": [0.0, 0.8, 0.4],
+            "duration": 3.0,
             "orientation_needed": false
           }
         },
@@ -134,9 +127,9 @@
         },
         {
           "action": "move_cartesian",
-          "description": "Move back up (World Coords)",
+          "description": "Move back (World Coords)",
           "parameters": {
-            "pose": [0.0, 0.8, 0.25],
+            "pose": [0.4, 0.4, 0.5],
             "duration": 2.0,
             "orientation_needed": false
           }
@@ -152,11 +145,6 @@
       "type": "piper",
       "base_pos": [0, -0.4, 0],
       "sequence": [
-        {
-          "action": "idle",
-          "description": "Wait for left arm to start",
-          "parameters": { "duration": 1.0 }
-        },
         {
           "action": "open_gripper",
           "description": "Ensure gripper is open at start"
@@ -192,25 +180,25 @@
           "action": "move_cartesian",
           "description": "Lift the right block up (World Coords)",
           "parameters": {
-            "pose": [0.4, -0.4, 0.25],
+            "pose": [0.4, -0.4, 0.5],
             "duration": 2.0,
             "orientation_needed": false
           }
         },
         {
           "action": "move_cartesian",
-          "description": "Move towards the right bin (World Coords)",
+          "description": "Move towards theron_bot (World Coords)",
           "parameters": {
-            "pose": [0.0, -0.8, 0.25],
+            "pose": [0.0, -0.8, 0.5],
             "duration": 3.0,
             "orientation_needed": false
           }
         },
         {
           "action": "move_cartesian",
-          "description": "Lower right block into bin (World Coords)",
+          "description": "Lower right block into theron_bot (World Coords)",
           "parameters": {
-            "pose": [0.0, -0.8, 0.15],
+            "pose": [0.0, -0.8, 0.4],
             "duration": 2.0,
             "orientation_needed": false
           }
@@ -226,9 +214,9 @@
         },
         {
           "action": "move_cartesian",
-          "description": "Move back up (World Coords)",
+          "description": "Move back (World Coords)",
           "parameters": {
-            "pose": [0.0, -0.8, 0.25],
+            "pose": [0.4, -0.4, 0.5],
             "duration": 2.0,
             "orientation_needed": false
           }
