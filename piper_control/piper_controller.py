@@ -18,6 +18,7 @@ from dataclasses import dataclass
 class PiperState(RobotState):
     joint_positions: Optional[np.ndarray] = None
     end_effector_pose: Optional[np.ndarray] = None
+    end_effector_euler: Optional[np.ndarray] = None
 
 class PiperController(BaseRobotController):
     """
@@ -31,20 +32,59 @@ class PiperController(BaseRobotController):
         # Initialize Kinematics Helper
         self.kinematics = PiperKinematics(model, urdf_path, prefix=self.prefix)
         
+        # --- START: COORDINATE FRAME CORRECTION ---
+        # User reported that with Euler angles [0,0,0], the end-effector points along the World Y-axis.
+        # This correction re-aligns the "Tool Frame" (logical control frame) so that [0,0,0] Euler
+        # angles correspond to the end-effector pointing along the World X-axis, which is a common
+        # convention for robot tool frames.
+        # If the physical robot's default orientation (Y-forward) is intended, this block can be removed.
+        #
+        # The physical End Effector (Link6) has its functional axis along Y (based on user report).
+        # The User "Tool Frame" expects the functional axis along X.
+        # We define a fixed rotation between Tool Frame and Link6 Frame:
+        # We need Link6's Y-axis (geometry forward) to align with Tool's X-axis (control forward).
+        # This corresponds to a rotation of -90 degrees around the Z-axis.
+        self.r_tool_link6 = R.from_euler('z', -90, degrees=True) # Rotation from Tool Frame to Link6 Frame
+        self.r_link6_tool = self.r_tool_link6.inv()            # Rotation from Link6 Frame to Tool Frame
+        # --- END: COORDINATE FRAME CORRECTION ---
+
         self.home_joints = np.array([0, 1.57, -1.3485, 0, 0, 0])
         self._reset_to_home()
 
     # --- Interface Implementation ---
 
     def get_robot_state(self) -> PiperState:
+        # FK returns Pose of Link6 in Base Frame
+        ee_pose_link6 = self.kinematics.forward_kinematics(self._get_joint_positions())
+        
+        # --- START: COORDINATE FRAME CORRECTION ---
+        # Convert Link6 Pose -> Tool Pose
+        # P_tool = P_link6 (assuming origin is same, just rotation)
+        # R_world_tool = R_world_link6 * R_link6_tool
+        # This converts the raw FK result (Link6 frame) into the user-friendly Tool Frame
+        # (where [0,0,0] Euler means X-forward).
+        pos = ee_pose_link6[:3]
+        quat_link6 = ee_pose_link6[3:] # [x, y, z, w]
+        
+        r_world_link6 = R.from_quat(quat_link6)
+        r_world_tool = r_world_link6 * self.r_link6_tool
+        
+        # Reconstruct State with Tool Frame
+        ee_pose_tool = np.concatenate([pos, r_world_tool.as_quat()])
+        # --- END: COORDINATE FRAME CORRECTION ---
+        
+        # Use 'xyz' (Extrinsic) which corresponds to the requested RPY (XYZ fixed axis) format
+        euler = r_world_tool.as_euler('xyz', degrees=True)
+        
         return PiperState(
             timestamp=time.time(),
             joint_positions=self._get_joint_positions(),
-            end_effector_pose=self.kinematics.forward_kinematics(self._get_joint_positions())
+            end_effector_pose=ee_pose_tool,
+            end_effector_euler=euler
         )
 
     def format_state(self) -> str:
-        """Custom format with degrees for orientation."""
+        """Custom format with quaternion for orientation."""
         state = self.get_robot_state()
         lines = [f"[{self.robot_name}] State:"]
         lines.append(f"  Timestamp: {state.timestamp:.3f}")
@@ -54,10 +94,12 @@ class PiperController(BaseRobotController):
 
         if state.end_effector_pose is not None:
             pos = state.end_effector_pose[:3]
-            euler_rad = state.end_effector_pose[3:]
-            euler_deg = np.rad2deg(euler_rad)
+            quat = state.end_effector_pose[3:] # [x, y, z, w]
             lines.append(f"  EE Pos: {np.array2string(pos, precision=3, suppress_small=True)}")
-            lines.append(f"  EE Euler (Deg): {np.array2string(euler_deg, precision=3)}")
+            lines.append(f"  EE Quat (xyzw): {np.array2string(quat, precision=3)}")
+        
+        if state.end_effector_euler is not None:
+            lines.append(f"  EE Euler (xyz deg): {np.array2string(state.end_effector_euler, precision=3)}")
         return "\n".join(lines)
 
     def print_state(self):
@@ -69,18 +111,43 @@ class PiperController(BaseRobotController):
         """Handler for 'move_joints' action."""
         self._move_to_joints(np.array(joints), duration)
 
-    def action_move_cartesian(self, pose: List[float], duration: Optional[float] = None, orientation_needed: bool = False):
-        """Handler for 'move_cartesian' action. Pose is in World Frame."""
+    def action_move_cartesian(self, pose: List[float], 
+                              quat: Optional[List[float]] = None, 
+                              euler: Optional[List[float]] = None, 
+                              duration: Optional[float] = None,
+                              **kwargs):
+        """
+        Handler for 'move_cartesian' action. Pose is in World Frame.
+        pose: [x, y, z]
+        quat: [x, y, z, w] (Optional)
+        euler: [x, y, z] angles (Optional) - interpreted as RPY (Extrinsic xyz in SciPy)
+        """
+        # Check exclusivity
+        if quat is not None and euler is not None:
+            print(f"[{self.robot_name}] Error: Cannot provide both 'quat' and 'euler'.")
+            return
+
         # Convert World Pose to Local (Robot Base) Pose
         target_pos_world = np.array(pose[:3])
-        # Support full pose (pos+euler)
-        if len(pose) > 3:
-            # Input Euler is in DEGREES -> Convert to Radians
-            target_euler_deg = np.array(pose[3:])
-            target_euler_rad = np.deg2rad(target_euler_deg)
-            r_world = R.from_euler('xyz', target_euler_rad)
-        else:
-            r_world = R.identity()
+        
+        orientation_needed = False
+        r_world_tool = R.identity() # Default to Identity Tool Frame
+
+        if quat is not None:
+            orientation_needed = True
+            r_world_tool = R.from_quat(quat)
+        elif euler is not None:
+            orientation_needed = True
+            # Use 'xyz' to match requested RPY standard
+            r_world_tool = R.from_euler('xyz', euler, degrees=True)
+        
+        # --- START: COORDINATE FRAME CORRECTION ---
+        # Convert User's Tool Frame target -> Link6 Frame target for IK solver.
+        # R_world_link6 = R_world_tool * R_tool_link6
+        # This transforms the user's desired orientation (in the X-forward Tool Frame)
+        # into the corresponding orientation for Link6 (which is Y-forward in its own frame).
+        r_world_link6 = r_world_tool * self.r_tool_link6
+        # --- END: COORDINATE FRAME CORRECTION ---
 
         # Base Transform
         r_base = R.from_quat([self.base_quat[1], self.base_quat[2], self.base_quat[3], self.base_quat[0]]) # scalar-last in scipy!
@@ -89,14 +156,15 @@ class PiperController(BaseRobotController):
         # T_local = T_base_inv * T_world
         
         # Position: p_local = R_base_inv * (p_world - p_base)
+        # Assuming Tool Origin == Link6 Origin
         p_local = r_base.inv().apply(target_pos_world - self.base_pos)
         
-        # Rotation: R_local = R_base_inv * R_world
-        r_local = r_base.inv() * r_world
-        euler_local = r_local.as_euler('xyz')
+        # Rotation: R_local = R_base_inv * R_world_link6
+        r_local = r_base.inv() * r_world_link6
+        quat_local = r_local.as_quat() # [x, y, z, w]
         
         # Construct target pose for IK
-        target_pose_local = np.concatenate([p_local, euler_local])
+        target_pose_local = np.concatenate([p_local, quat_local])
         
         # Call IK with Local Pose
         current_joints = self._get_joint_positions()
@@ -294,15 +362,17 @@ class PiperKinematics:
         full[1:7] = joints
         mat = self.chain.forward_kinematics(full)
         pos = mat[:3, 3]
-        euler = R.from_matrix(mat[:3, :3]).as_euler('xyz')
-        return np.concatenate([pos, euler])
+        quat = R.from_matrix(mat[:3, :3]).as_quat() # [x, y, z, w]
+        return np.concatenate([pos, quat])
 
     def inverse_kinematics(self, target_pose, current_joints, orientation_needed):
+        # target_pose is [x, y, z, qx, qy, qz, qw] or [x, y, z]
         if len(target_pose) == 3:
-            target_pose = np.concatenate([target_pose, [0,0,0]])
+            target_pose = np.concatenate([target_pose, [0, 0, 0, 1]]) # Identity quat [x,y,z,w]
             
         pos = target_pose[:3]
-        rot = R.from_euler('xyz', target_pose[3:]).as_matrix()
+        # target_pose[3:] should be [x, y, z, w]
+        rot = R.from_quat(target_pose[3:]).as_matrix()
         target_mat = np.eye(4)
         target_mat[:3, :3] = rot
         target_mat[:3, 3] = pos

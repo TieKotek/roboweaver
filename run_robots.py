@@ -118,10 +118,13 @@ class SceneBuilder:
             r_type = robot.get("type", "piper")
             r_name = robot.get("name", "robot")
             base_pos = robot.get("base_pos", [0,0,0])
-            base_yaw = robot.get("base_yaw", 0.0)
             
-            # Calculate quaternion from yaw
-            base_quat = yaw_to_quat(base_yaw)
+            if "base_quat" in robot:
+                base_quat = robot["base_quat"]
+            else:
+                base_yaw = robot.get("base_yaw", 0.0)
+                # Calculate quaternion from yaw
+                base_quat = yaw_to_quat(base_yaw)
 
             if r_type not in ROBOT_XML_TEMPLATES:
                 print(f"Warning: Unknown robot type '{r_type}', skipping.")
@@ -364,8 +367,12 @@ def main():
             
             # Pass base_pos and base_quat to controller
             base_pos = np.array(r_conf.get("base_pos", [0,0,0]))
-            base_yaw = r_conf.get("base_yaw", 0.0)
-            base_quat = np.array(yaw_to_quat(base_yaw))
+            
+            if "base_quat" in r_conf:
+                base_quat = np.array(r_conf["base_quat"])
+            else:
+                base_yaw = r_conf.get("base_yaw", 0.0)
+                base_quat = np.array(yaw_to_quat(base_yaw))
             
             if urdf_path:
                 ctrl = ControllerClass(
