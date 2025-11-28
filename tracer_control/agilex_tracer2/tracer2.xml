@@ -1,0 +1,92 @@
+<mujoco model="tracer2">
+  <compiler meshdir="assets" angle="radian" autolimits="true"/>
+
+  <default>
+    <default class="visual">
+      <geom type="mesh" contype="0" conaffinity="0" group="2" material="gray"/>
+    </default>
+    <default class="collision">
+      <geom type="mesh" group="1"/>
+      <default class="wheel">
+        <geom friction="1 0.005 0.0001"/>
+      </default>
+      <default class="caster">
+        <!-- Low friction to simulate omni-directional sliding for the fixed casters -->
+        <geom friction="0.01 0.005 0.0001"/>
+      </default>
+    </default>
+  </default>
+
+  <asset>
+    <material name="gray" rgba="0.7 0.7 0.7 1"/>
+    <material name="dark" rgba="0.2 0.2 0.2 1"/>
+    
+    <mesh name="base_link" file="base_link.STL"/>
+    <mesh name="right_link" file="right_link.STL"/>
+    <mesh name="left_Link" file="left_Link.STL"/>
+    <mesh name="right_front_link" file="right_front_link.STL"/>
+    <mesh name="right_rear_link" file="right_rear_link.STL"/>
+    <mesh name="left_front_link" file="left_front_link.STL"/>
+    <mesh name="left_rear_link" file="left_rear_link.STL"/>
+  </asset>
+
+  <worldbody>
+    <body name="base_link" pos="0 0 0.2">
+      <freejoint/>
+      <geom mesh="base_link" class="visual" material="dark"/>
+      <geom mesh="base_link" class="collision"/>
+
+      <!-- Right Wheel -->
+      <!-- Origin: xyz="-0.018818 -0.2537 -0.0905" rpy="-1.5708 0 0" -->
+      <body name="right_link" pos="-0.018818 -0.2537 -0.0905" quat="0.7071068 -0.7071068 0 0">
+        <joint name="right_joint" axis="0 0 1" damping="0.1" armature="0.01"/>
+        <geom mesh="right_link" class="visual"/>
+        <geom mesh="right_link" class="wheel"/>
+      </body>
+
+      <!-- Left Wheel -->
+      <!-- Origin: xyz="-0.018818 0.2537 -0.0905" rpy="1.5708 0 0" -->
+      <body name="left_link" pos="-0.018818 0.2537 -0.0905" quat="0.7071068 0.7071068 0 0">
+        <joint name="left_joint" axis="0 0 1" damping="0.1" armature="0.01"/>
+        <geom mesh="left_Link" class="visual"/>
+        <geom mesh="left_Link" class="wheel"/>
+      </body>
+
+      <!-- Fixed Casters (Simulated as low-friction sliders) -->
+      
+      <!-- Right Front -->
+      <!-- Origin: xyz="0.23918 -0.1977 -0.058" rpy="3.1416 0 0" -->
+      <body name="right_front_link" pos="0.23918 -0.1977 -0.058" quat="0 1 0 0">
+        <geom mesh="right_front_link" class="visual"/>
+        <geom mesh="right_front_link" class="caster"/>
+      </body>
+
+      <!-- Right Rear -->
+      <!-- Origin: xyz="-0.27082 -0.183 -0.058" rpy="3.1416 0 0" -->
+      <body name="right_rear_link" pos="-0.27082 -0.183 -0.058" quat="0 1 0 0">
+        <geom mesh="right_rear_link" class="visual"/>
+        <geom mesh="right_rear_link" class="caster"/>
+      </body>
+
+      <!-- Left Front -->
+      <!-- Origin: xyz="0.23918 0.1977 -0.058" rpy="0 0 0" -->
+      <body name="left_front_link" pos="0.23918 0.1977 -0.058">
+        <geom mesh="left_front_link" class="visual"/>
+        <geom mesh="left_front_link" class="caster"/>
+      </body>
+
+      <!-- Left Rear -->
+      <!-- Origin: xyz="-0.27077 0.18305 -0.058" rpy="0 0 0" -->
+      <body name="left_rear_link" pos="-0.27077 0.18305 -0.058">
+        <geom mesh="left_rear_link" class="visual"/>
+        <geom mesh="left_rear_link" class="caster"/>
+      </body>
+
+    </body>
+  </worldbody>
+
+  <actuator>
+    <velocity name="right_drive" joint="right_joint" kv="10" ctrlrange="-20 20"/>
+    <velocity name="left_drive" joint="left_joint" kv="10" ctrlrange="-20 20"/>
+  </actuator>
+</mujoco>
