@@ -13,12 +13,12 @@
     <body name="right_wheel_link" pos="0 -0.2516 0.0762">
       <inertial pos="0 0 0" quat="0.5 0.5 -0.5 0.5" mass="1" diaginertia="0.00290322 0.00150369 0.00150369"/>
       <joint name="right_wheel_joint" pos="0 0 0" axis="0 1 0" actuatorfrcrange="-100 100"/>
-      <geom size="0.0762 0.0125" quat="0.707107 0.707107 0 0" type="cylinder"/>
+      <geom size="0.0762 0.0125" quat="0.707107 0.707107 0 0" type="cylinder" friction="3.0 0.005 0.0001"/>
     </body>
     <body name="left_wheel_link" pos="0 0.2516 0.0762">
       <inertial pos="0 0 0" quat="0.5 0.5 -0.5 0.5" mass="1" diaginertia="0.00290322 0.00150369 0.00150369"/>
       <joint name="left_wheel_joint" pos="0 0 0" axis="0 1 0" actuatorfrcrange="-100 100"/>
-      <geom size="0.0762 0.0125" quat="0.707107 0.707107 0 0" type="cylinder"/>
+      <geom size="0.0762 0.0125" quat="0.707107 0.707107 0 0" type="cylinder" friction="3.0 0.005 0.0001"/>
     </body>
     <body name="front_left_support" pos="0.235 0.1825 0.121">
       <inertial pos="0 0 0" quat="0.5 0.5 -0.5 0.5" mass="1.5" diaginertia="7.5e-05 5e-05 5e-05"/>
@@ -61,7 +61,7 @@
     </worldbody>
 
   <actuator>
-    <velocity name="right_wheel_vel" joint="right_wheel_joint" kv="100" ctrlrange="-50 50"/>
-    <velocity name="left_wheel_vel" joint="left_wheel_joint" kv="100" ctrlrange="-50 50"/>
+    <velocity name="right_wheel_vel" joint="right_wheel_joint" kv="50" ctrlrange="-50 50"/>
+    <velocity name="left_wheel_vel" joint="left_wheel_joint" kv="50" ctrlrange="-50 50"/>
   </actuator>
 </mujoco>
