@@ -251,7 +251,8 @@ class PiperController(BaseRobotController):
         if self.kinematics.gripper_actuator_id != -1:
             self.data.ctrl[self.kinematics.gripper_actuator_id] = val
         else:
-            self.data.qpos[self.kinematics.gripper_id] = val
+            qpos_adr = self.model.jnt_qposadr[self.kinematics.gripper_id]
+            self.data.qpos[qpos_adr] = val
 
     def _move_gripper(self, target_position: float):
         """
@@ -277,8 +278,11 @@ class PiperController(BaseRobotController):
 
             # Get gripper state
             # Note: For slide joint, qpos is length
-            current_pos = self.data.qpos[self.kinematics.gripper_id]
-            current_vel = self.data.qvel[self.kinematics.gripper_id]
+            qpos_adr = self.model.jnt_qposadr[self.kinematics.gripper_id]
+            qvel_adr = self.model.jnt_dofadr[self.kinematics.gripper_id]
+            
+            current_pos = self.data.qpos[qpos_adr]
+            current_vel = self.data.qvel[qvel_adr]
 
             # 1. Target Reached?
             if abs(current_pos - target_position) < pos_tolerance:
@@ -302,6 +306,11 @@ class PiperController(BaseRobotController):
                         break
             
             time.sleep(self.control_dt)
+        
+        # Check if we timed out
+        if time.time() - start_time >= timeout:
+            # print(f"[{self.robot_name}] Gripper timeout! Target: {target_position}")
+            pass
 
     def _check_limits(self, joints: np.ndarray) -> bool:
         return np.all(joints >= self.kinematics.limits[:, 0]) and \

@@ -1,7 +1,9 @@
 {
   "description": "RB-Theron Absolute Turn Test",
   "scene": {
-    "friction": [1.0, 0.005, 0.0001],
+    "friction": [3.0, 0.005, 0.0001],
+    "solimp": [0.95, 0.99, 0.001],
+    "solref": [0.004, 1],
     "objects": []
   },
   "robots": [

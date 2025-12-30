@@ -115,15 +115,17 @@ class BaseRobotController(ABC):
     def format_state(self) -> str:
         """
         Return a formatted string of the robot state.
-        Default implementation.
+        Default implementation with 2-decimal precision.
         """
         state = self.get_robot_state()
         lines = [f"[{self.robot_name}] State:"]
+        fmt = {"float_kind": lambda x: f"{x:.2f}"}
+        
         for field, value in state.__dict__.items():
             if value is None:
                 continue
             if isinstance(value, np.ndarray):
-                lines.append(f"  {field}: {np.array2string(value, precision=3, suppress_small=True)}")
+                lines.append(f"  {field}: {np.array2string(value, formatter=fmt)}")
             else:
                 lines.append(f"  {field}: {value}")
         return "\n".join(lines)

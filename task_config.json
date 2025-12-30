@@ -1,0 +1,388 @@
+{
+  "description": "Dual-Arm Pick and Place Demo",
+  "scene": {
+    "friction": [3.0, 0.005, 0.0001],
+    "solimp": [0.95, 0.99, 0.001],
+    "solref": [0.004, 1],
+    "objects": [
+        {
+            "name": "grA1_base",
+            "type": "box",
+            "size": [0.15, 0.15, 0.1],
+            "pos": [0.8, -0.4, 0.1],
+            "rgba": [0.6, 0.4, 0.2, 1],
+            "movable": false
+        },
+        {
+            "name": "grA2_base",
+            "type": "box",
+            "size": [0.15, 0.15, 0.1],
+            "pos": [1.6, -0.4, 0.1],
+            "rgba": [0.6, 0.4, 0.2, 1],
+            "movable": false
+        },
+        {
+            "name": "grB1_base",
+            "type": "box",
+            "size": [0.15, 0.15, 0.1],
+            "pos": [0, -0.4, 0.1],
+            "rgba": [0.3, 0.4, 0.2, 1],
+            "movable": false
+        },
+        {
+            "name": "red_block",
+            "type": "box",
+            "size": [0.02, 0.02, 0.02],
+            "pos": [0.0, -0.8, 0.22],
+            "rgba": [0.8, 0, 0, 1],
+            "movable": true,
+            "mass": 0.01,
+            "friction": [5.0, 0.1, 0.001]
+        },
+        {
+            "name": "green_block",
+            "type": "box",
+            "size": [0.02, 0.02, 0.02],
+            "pos": [0.8, -0.8, 0.22],
+            "rgba": [0, 0.8, 0, 1],
+            "movable": true,
+            "mass": 0.01,
+            "friction": [5.0, 0.1, 0.001]
+        },
+        {
+            "name": "red_block_base",
+            "type": "box",
+            "size": [0.1, 0.1, 0.1],
+            "pos": [0.0, -0.8, 0.1],
+            "rgba": [0.6, 0.4, 0.2, 1],
+            "movable": false
+        },
+        {
+            "name": "green_block_base",
+            "type": "box",
+            "size": [0.1, 0.1, 0.1],
+            "pos": [0.8, -0.8, 0.1],
+            "rgba": [0.6, 0.4, 0.2, 1],
+            "movable": false
+        },
+        {
+            "name": "dinner_table",
+            "type": "box",
+            "size": [2.0, 0.3, 0.2],
+            "pos": [0.8, 1.3, 0.10],
+            "rgba": [0.6, 0.4, 0.2, 1],
+            "movable": false
+        }
+    ]
+  },
+  "robots": [
+    {
+        "name": "grA1",
+        "type": "piper",
+        "base_pos": [0.8, -0.4, 0.2],
+        "sequence": [
+            {
+                "action": "move_cartesian",
+                "parameters": {
+                    "pose": [0.8, 0, 0.5],
+                    "euler": [90, 30, 90],
+                    "duration": 4.0
+                },
+                "description": "Move to starting position"
+            },
+            {
+                "action": "move_cartesian",
+                "parameters": {
+                    "pose": [0.8, -0.8, 0.4],
+                    "euler": [90, 30, -90],
+                    "duration": 6.0
+                },
+                "description": "Move to pick position"
+            },
+            {
+                "action": "open_gripper",
+                "description": "Open gripper before picking"
+            },
+            {
+                "action": "move_cartesian",
+                "parameters": {
+                    "pose": [0.8, -0.8, 0.22],
+                    "euler": [90, 45, -90],
+                    "duration": 3.0
+                },
+                "description": "Pick the block"
+            },
+            {
+                "action": "close_gripper",
+                "description": "Close gripper after picking"
+            },
+            {
+                "action": "move_cartesian",
+                "parameters": {
+                    "pose": [0.8, -0.8, 0.4],
+                    "euler": [90, 30, -90],
+                    "duration": 3.0
+                },
+                "description": "Move up after picking"
+            },
+                        {
+                "action": "move_cartesian",
+                "parameters": {
+                    "pose": [1.2, -0.4, 0.4],
+                    "duration": 3.0
+                },
+                "description": "internal_point"
+            },
+            {
+                "action": "move_cartesian",
+                "parameters": {
+                    "pose": [0.8, 0, 0.5],
+                    "euler": [90, 30, 90],
+                    "duration": 3.0
+                },
+                "description": "back to starting position"
+            },
+            {
+                "action": "move_cartesian",
+                "parameters": {
+                    "pose": [0.8, 0.2, 0.35],
+                    "euler": [90, 45, 90],
+                    "duration": 3.0
+                },
+                "description": "Place the block down"
+            },
+            {
+                "action": "open_gripper",
+                "description": "Open gripper to release the block"
+            },
+            {
+                "action": "move_cartesian",
+                "parameters": {
+                    "pose": [0.8, 0, 0.5],
+                    "euler": [90, 30, 90],
+                    "duration": 3.0
+                },
+                "description": "back to starting position"
+            }
+        ]
+    },
+    {
+        "name": "grA2",
+        "type": "piper",
+        "base_pos": [1.6, -0.4, 0.2],
+        "sequence": [
+            {
+                "action": "move_cartesian",
+                "parameters": {
+                    "pose": [1.6, 0, 0.5],
+                    "euler": [90, 30, 90],
+                    "duration": 4.0
+                },
+                "description": "Move to starting position"
+            }
+        ]
+    },
+    {
+        "name": "grB1",
+        "type": "piper",
+        "base_pos": [0, -0.4, 0.2],
+        "sequence": [
+            {
+                "action": "move_cartesian",
+                "parameters": {
+                    "pose": [0.0, 0, 0.5],
+                    "euler": [90, 30, 90],
+                    "duration": 4.0
+                },
+                "description": "Move to starting position"
+            },
+            {
+                "action": "move_cartesian",
+                "parameters": {
+                    "pose": [0.0, -0.8, 0.4],
+                    "euler": [90, 30, -90],
+                    "duration": 6.0
+                },
+                "description": "Move to pick position"
+            },
+            {
+                "action": "open_gripper",
+                "description": "Open gripper before picking"
+            },
+            {
+                "action": "move_cartesian",
+                "parameters": {
+                    "pose": [0.0, -0.8, 0.22],
+                    "euler": [90, 45, -90],
+                    "duration": 3.0
+                },
+                "description": "Pick the block"
+            },
+            {
+                "action": "close_gripper",
+                "description": "Close gripper after picking"
+            },
+            {
+                "action": "move_cartesian",
+                "parameters": {
+                    "pose": [0.0, -0.8, 0.4],
+                    "euler": [90, 30, -90],
+                    "duration": 3.0
+                },
+                "description": "Move up after picking"
+            },
+            {
+                "action": "move_cartesian",
+                "parameters": {
+                    "pose": [0.4, -0.4, 0.4],
+                    "duration": 3.0
+                },
+                "description": "internal_point"
+            },
+            {
+                "action": "move_cartesian",
+                "parameters": {
+                    "pose": [0.0, 0, 0.5],
+                    "euler": [90, 30, 90],
+                    "duration": 3.0
+                },
+                "description": "back to starting position"
+            },
+            {
+                "action": "move_cartesian",
+                "parameters": {
+                    "pose": [0.0, 0.2, 0.35],
+                    "euler": [90, 45, 90],
+                    "duration": 3.0
+                },
+                "description": "Place the block down"
+            },
+            {
+                "action": "open_gripper",
+                "description": "Open gripper to release the block"
+            },
+            {
+                "action": "move_cartesian",
+                "parameters": {
+                    "pose": [0.0, 0, 0.5],
+                    "euler": [90, 30, 90],
+                    "duration": 3.0
+                },
+                "description": "back to starting position"
+            }
+        ]
+    },
+    {
+        "name": "c1",
+        "type": "rbtheron",
+        "base_pos": [0.0, 0.2, 0.0],
+        "base_yaw": 90.0,
+        "sequence": [
+            { "action": "idle", "parameters": { "duration": 32 } },
+            { "action": "move_straight", "parameters": { "distance": 0.4, "direction": "forward" } }
+        ]
+    },
+    {
+        "name": "c2",
+        "type": "rbtheron",
+        "base_pos": [0.8, 0.2, 0.0],
+        "base_yaw": 90.0,
+        "sequence": [
+            { "action": "idle", "parameters": { "duration": 32 } },
+            { "action": "move_straight", "parameters": { "distance": 0.4, "direction": "forward" } }
+        ]
+    },
+    {
+        "name": "grA3",
+        "type": "piper",
+        "base_pos": [0.0, 1.1, 0.3],
+        "sequence": [
+            {
+                "action": "move_cartesian",
+                "parameters": {
+                    "pose": [0.0, 0.6, 0.8],
+                    "euler": [90, 30, -90],
+                    "duration": 3.0
+                },
+                "description": "Move to starting position"
+            },
+            {
+                "action": "idle",
+                "parameters": { "duration": 35.0 }
+            },
+            {
+                "action": "open_gripper",
+                "description": "Open gripper before picking"
+            },
+            {
+                "action": "move_cartesian",
+                "parameters": {
+                    "pose": [0.0, 0.55, 0.35],
+                    "euler": [90, 45, -90],
+                    "duration": 3.0
+                },
+                "description": "Pick the block"
+            },
+            {
+                "action": "close_gripper",
+                "description": "Close gripper after picking"
+            },
+            {
+                "action": "move_cartesian",
+                "parameters": {
+                    "pose": [0.0, 0.6, 0.8],
+                    "euler": [90, 30, -90],
+                    "duration": 3.0
+                },
+                "description": "Move to starting position"
+            }
+        ]
+    },
+    {
+        "name": "grA4",
+        "type": "piper",
+        "base_pos": [0.8, 1.1, 0.3],
+        "sequence": [
+            {
+                "action": "move_cartesian",
+                "parameters": {
+                    "pose": [0.8, 0.6, 0.8],
+                    "euler": [90, 30, -90],
+                    "duration": 3.0
+                },
+                "description": "Move to starting position"
+            },
+            {
+                "action": "idle",
+                "parameters": { "duration": 35.0 }
+            },
+            {
+                "action": "open_gripper",
+                "description": "Open gripper before picking"
+            },
+            {
+                "action": "move_cartesian",
+                "parameters": {
+                    "pose": [0.8, 0.55, 0.35],
+                    "euler": [90, 45, -90],
+                    "duration": 3.0
+                },
+                "description": "Pick the block"
+            },
+            {
+                "action": "close_gripper",
+                "description": "Close gripper after picking"
+            },
+            {
+                "action": "move_cartesian",
+                "parameters": {
+                    "pose": [0.8, 0.6, 0.8],
+                    "euler": [90, 30, -90],
+                    "duration": 3.0
+                },
+                "description": "Move to starting position"
+            }
+        ]
+    }
+  ]
+}
