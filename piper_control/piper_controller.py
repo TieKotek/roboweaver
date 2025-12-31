@@ -366,6 +366,40 @@ class PiperKinematics:
             [-1.832, 1.832], [-1.22, 1.22], [-3.14, 3.14]
         ])
 
+        # 4. Precompute Seeds for Multi-Seed IK
+        self.seeds = []
+        self._init_seeds()
+
+    def _init_seeds(self):
+        """
+        Pre-calculate joint configurations for standard poses (Forward, Left, Back, Right).
+        These serve as restart seeds for IK to avoid local minima during large movements.
+        """
+        # Relative to base (x, y, z)
+        seed_points = [
+            [0.4, 0.0, 0.4],   # Forward
+            [0.0, 0.4, 0.4],   # Left
+            [-0.4, 0.0, 0.4],  # Back
+            [0.0, -0.4, 0.4]   # Right
+        ]
+        
+        # Neutral orientation (Identity matrix)
+        dummy_rot = np.eye(3)
+        
+        # Initial guess for the solver to find the seeds (Flat zeros)
+        initial_guess = np.zeros(9)
+        
+        for pt in seed_points:
+            target = np.eye(4)
+            target[:3, 3] = pt
+            target[:3, :3] = dummy_rot
+            try:
+                # Solve for these "Anchor" poses
+                sol = self.chain.inverse_kinematics_frame(target, initial_position=initial_guess)
+                self.seeds.append(sol)
+            except Exception:
+                pass
+
     def forward_kinematics(self, joints):
         full = np.zeros(9)
         full[1:7] = joints
@@ -386,14 +420,53 @@ class PiperKinematics:
         target_mat[:3, :3] = rot
         target_mat[:3, 3] = pos
 
-        initial = np.zeros(9)
-        initial[1:7] = current_joints
+        # --- Multi-Seed IK Strategy ---
+        # 1. Try from Current Configuration (Fastest, best for continuity)
+        # 2. Try from Pre-computed Seeds (Good for large jumps/orientation flips)
+        # 3. Try from Zero/Home (Fallback)
+        
+        candidates_to_try = []
+        
+        # Seed 1: Current Joints
+        current_full = np.zeros(9)
+        current_full[1:7] = current_joints
+        candidates_to_try.append(current_full)
+        
+        # Seed 2..5: Cached Seeds
+        candidates_to_try.extend(self.seeds)
+        
+        # Seed 6: Zero
+        candidates_to_try.append(np.zeros(9))
 
-        try:
-            sol = self.chain.inverse_kinematics_frame(
-                target_mat, initial_position=initial, 
-                orientation_mode="all" if orientation_needed else None
-            )
-            return sol[1:7]
-        except:
-            return None
+        best_sol = None
+        best_error = float('inf')
+        acceptance_tolerance = 0.01 # 1cm position error acceptable
+
+        for initial_guess in candidates_to_try:
+            try:
+                sol = self.chain.inverse_kinematics_frame(
+                    target_mat, initial_position=initial_guess, 
+                    orientation_mode="all" if orientation_needed else None
+                )
+                
+                # Validation: Check Forward Kinematics of the solution
+                fk_mat = self.chain.forward_kinematics(sol)
+                pos_error = np.linalg.norm(fk_mat[:3, 3] - pos)
+                
+                if pos_error < best_error:
+                    best_error = pos_error
+                    best_sol = sol
+                
+                # Early exit if good enough
+                if best_error < acceptance_tolerance:
+                    break
+            except:
+                continue
+
+        if best_sol is not None:
+            # We return the best found solution even if error is slightly high,
+            # as it's better than nothing, but users might want to know.
+            # For now, we trust the "best" one.
+            return best_sol[1:7]
+            
+        return None

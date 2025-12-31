@@ -125,29 +125,12 @@
                 },
                 "description": "Move up after picking"
             },
-                        {
-                "action": "move_cartesian",
-                "parameters": {
-                    "pose": [1.2, -0.4, 0.4],
-                    "duration": 3.0
-                },
-                "description": "internal_point"
-            },
-            {
-                "action": "move_cartesian",
-                "parameters": {
-                    "pose": [0.8, 0, 0.5],
-                    "euler": [90, 30, 90],
-                    "duration": 3.0
-                },
-                "description": "back to starting position"
-            },
             {
                 "action": "move_cartesian",
                 "parameters": {
                     "pose": [0.8, 0.2, 0.35],
                     "euler": [90, 45, 90],
-                    "duration": 3.0
+                    "duration": 6.0
                 },
                 "description": "Place the block down"
             },
@@ -234,26 +217,9 @@
             {
                 "action": "move_cartesian",
                 "parameters": {
-                    "pose": [0.4, -0.4, 0.4],
-                    "duration": 3.0
-                },
-                "description": "internal_point"
-            },
-            {
-                "action": "move_cartesian",
-                "parameters": {
-                    "pose": [0.0, 0, 0.5],
-                    "euler": [90, 30, 90],
-                    "duration": 3.0
-                },
-                "description": "back to starting position"
-            },
-            {
-                "action": "move_cartesian",
-                "parameters": {
                     "pose": [0.0, 0.2, 0.35],
                     "euler": [90, 45, 90],
-                    "duration": 3.0
+                    "duration": 6.0
                 },
                 "description": "Place the block down"
             },
