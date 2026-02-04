@@ -72,12 +72,37 @@ class BaseRobotController(ABC):
             
             handler = getattr(self, handler_name)
             params = action_config.get("parameters", {})
+            
+            # 1. Enforce minimum duration of 0.5s if duration is specified
+            target_duration = params.get("duration")
+            if target_duration is not None and isinstance(target_duration, (int, float)):
+                if target_duration < 0.5:
+                    msg = f"[{self.robot_name}] Note: duration {target_duration}s is too short, clamping to 0.5s for safety."
+                    print(msg)
+                    self.log(msg)
+                    params["duration"] = 0.5
+                    target_duration = 0.5
+
+            start_time = time.perf_counter() # High precision timer
             try:
                 handler(**params)
+                actual_duration = time.perf_counter() - start_time
+                
+                # 2. Check for timing deviation > 20%
+                if target_duration is not None and target_duration > 0:
+                    deviation = abs(actual_duration - target_duration) / target_duration
+                    if deviation > 0.2:
+                        warn_msg = f"[{self.robot_name}] TIMING WARNING: {action_name} took {actual_duration:.3f}s, " \
+                                   f"expected {target_duration:.3f}s (deviation: {deviation:.1%})"
+                        print(warn_msg)
+                        self.log(warn_msg)
+
                 if print_state:
                     # Log to file ONLY
-                    self.log(f"[{self.robot_name}] {action_name} completed.")
+                    self.log(f"[{self.robot_name}] {action_name} completed. Actual duration: {actual_duration:.3f}s")
                     self.log(self.format_state())
+                else:
+                    self.log(f"[{self.robot_name}] {action_name} completed. Actual duration: {actual_duration:.3f}s")
                 
             except Exception as e:
                  err_msg = f"[{self.robot_name}] Error executing {action_name}: {e}"

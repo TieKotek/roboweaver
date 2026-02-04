@@ -7,7 +7,7 @@ import numpy as np
 import mujoco
 import time
 import ikpy.chain
-from scipy.spatial.transform import Rotation as R
+from scipy.spatial.transform import Rotation as R, Slerp
 from typing import Optional, Tuple, List
 
 # Import the common interface
@@ -29,24 +29,9 @@ class PiperController(BaseRobotController):
         super().__init__(model, data, robot_name, base_pos, base_quat, log_dir)
         
         self.prefix = robot_name
-        # Initialize Kinematics Helper
-        self.kinematics = PiperKinematics(model, urdf_path, prefix=self.prefix)
-        
-        # --- START: COORDINATE FRAME CORRECTION ---
-        # User reported that with Euler angles [0,0,0], the end-effector points along the World Y-axis.
-        # This correction re-aligns the "Tool Frame" (logical control frame) so that [0,0,0] Euler
-        # angles correspond to the end-effector pointing along the World X-axis, which is a common
-        # convention for robot tool frames.
-        # If the physical robot's default orientation (Y-forward) is intended, this block can be removed.
-        #
-        # The physical End Effector (Link6) has its functional axis along Y (based on user report).
-        # The User "Tool Frame" expects the functional axis along X.
-        # We define a fixed rotation between Tool Frame and Link6 Frame:
-        # We need Link6's Y-axis (geometry forward) to align with Tool's X-axis (control forward).
-        # This corresponds to a rotation of -90 degrees around the Z-axis.
         self.r_tool_link6 = R.from_euler('z', -90, degrees=True) # Rotation from Tool Frame to Link6 Frame
         self.r_link6_tool = self.r_tool_link6.inv()            # Rotation from Link6 Frame to Tool Frame
-        # --- END: COORDINATE FRAME CORRECTION ---
+        self.kinematics = PiperKinematics(model, urdf_path, prefix=self.prefix)
 
         self.home_joints = np.array([0, 1.57, -1.3485, 0, 0, 0])
         self._reset_to_home()
@@ -56,13 +41,6 @@ class PiperController(BaseRobotController):
     def get_robot_state(self) -> PiperState:
         # FK returns Pose of Link6 in Base Frame
         ee_pose_link6 = self.kinematics.forward_kinematics(self._get_joint_positions())
-        
-        # --- START: COORDINATE FRAME CORRECTION ---
-        # Convert Link6 Pose -> Tool Pose
-        # P_tool = P_link6 (assuming origin is same, just rotation)
-        # R_world_tool = R_world_link6 * R_link6_tool
-        # This converts the raw FK result (Link6 frame) into the user-friendly Tool Frame
-        # (where [0,0,0] Euler means X-forward).
         pos = ee_pose_link6[:3]
         quat_link6 = ee_pose_link6[3:] # [x, y, z, w]
         
@@ -71,9 +49,6 @@ class PiperController(BaseRobotController):
         
         # Reconstruct State with Tool Frame
         ee_pose_tool = np.concatenate([pos, r_world_tool.as_quat()])
-        # --- END: COORDINATE FRAME CORRECTION ---
-        
-        # Use 'xyz' (Extrinsic) which corresponds to the requested RPY (XYZ fixed axis) format
         euler = r_world_tool.as_euler('xyz', degrees=True)
         
         return PiperState(
@@ -140,20 +115,12 @@ class PiperController(BaseRobotController):
             orientation_needed = True
             # Use 'xyz' to match requested RPY standard
             r_world_tool = R.from_euler('xyz', euler, degrees=True)
-        
-        # --- START: COORDINATE FRAME CORRECTION ---
-        # Convert User's Tool Frame target -> Link6 Frame target for IK solver.
-        # R_world_link6 = R_world_tool * R_tool_link6
-        # This transforms the user's desired orientation (in the X-forward Tool Frame)
-        # into the corresponding orientation for Link6 (which is Y-forward in its own frame).
+    
         r_world_link6 = r_world_tool * self.r_tool_link6
-        # --- END: COORDINATE FRAME CORRECTION ---
 
         # Base Transform
         r_base = R.from_quat([self.base_quat[1], self.base_quat[2], self.base_quat[3], self.base_quat[0]]) # scalar-last in scipy!
         # Note: self.base_quat is [w, x, y, z] (mujoco default), scipy expects [x, y, z, w]
-        
-        # T_local = T_base_inv * T_world
         
         # Position: p_local = R_base_inv * (p_world - p_base)
         # Assuming Tool Origin == Link6 Origin
@@ -173,10 +140,132 @@ class PiperController(BaseRobotController):
         )
         
         if target_joints is None:
-            print(f"[{self.robot_name}] IK Failed. Target unreachable.")
+            msg = f"[{self.robot_name}] CRITICAL: Target {target_pos_world} is out of reach or unreachable with orientation. Action aborted."
+            print(msg)
+            self.log(msg)
             return
 
         self._move_to_joints(target_joints, duration)
+
+    def action_move_linear(self, pose: List[float], 
+                          quat: Optional[List[float]] = None, 
+                          euler: Optional[List[float]] = None, 
+                          duration: Optional[float] = None,
+                          **kwargs):
+        """
+        Handler for 'move_linear' action. Moves the end-effector in a straight line 
+        to the target pose at a constant speed.
+        
+        Parameters:
+        - pose: [x, y, z] target position in World Frame.
+        - quat: [x, y, z, w] target orientation (Optional).
+        - euler: [x, y, z] target orientation in degrees (Optional).
+        - duration: Total time for the movement. If None, estimated based on distance.
+        """
+        if quat is not None and euler is not None:
+            print(f"[{self.robot_name}] Error: Cannot provide both 'quat' and 'euler'.")
+            return
+
+        # 1. Setup Target Orientation
+        target_pos_world = np.array(pose[:3])
+        orientation_constrained = False
+        r_world_tool_end = R.identity()
+
+        if quat is not None:
+            orientation_constrained = True
+            r_world_tool_end = R.from_quat(quat)
+        elif euler is not None:
+            orientation_constrained = True
+            r_world_tool_end = R.from_euler('xyz', euler, degrees=True)
+            
+        # 2. Get Current Pose
+        current_state = self.get_robot_state()
+        start_pos_world = current_state.end_effector_pose[:3]
+        r_world_tool_start = R.from_quat(current_state.end_effector_pose[3:])
+
+        # If target orientation isn't provided, maintain current orientation to keep motion stable
+        if not orientation_constrained:
+            r_world_tool_end = r_world_tool_start
+            orientation_constrained = True
+
+        # 3. Timing and Steps
+        if duration is None:
+            dist = np.linalg.norm(target_pos_world - start_pos_world)
+            duration = max(dist / 0.1, 0.5) # Default 0.1 m/s, min 0.5s
+        
+        steps = int(duration / self.control_dt)
+        if steps <= 0: steps = 1
+
+        # 4. Interpolation Setup (SLERP for orientation)
+        key_times = [0, 1]
+        key_rots = R.from_quat([r_world_tool_start.as_quat(), r_world_tool_end.as_quat()])
+        slerp_func = Slerp(key_times, key_rots)
+
+        # Base Transform (for local conversion)
+        r_base = R.from_quat([self.base_quat[1], self.base_quat[2], self.base_quat[3], self.base_quat[0]])
+
+        # --- PRE-CHECK: Can we even reach the end? ---
+        r_world_link6_end = r_world_tool_end * self.r_tool_link6
+        p_local_end = r_base.inv().apply(target_pos_world - self.base_pos)
+        r_local_end = r_base.inv() * r_world_link6_end
+        target_pose_local_end = np.concatenate([p_local_end, r_local_end.as_quat()])
+        
+        test_joints = self.kinematics.inverse_kinematics(
+            target_pose_local_end, current_state.joint_positions, orientation_needed=True
+        )
+        if test_joints is None:
+            msg = f"[{self.robot_name}] CRITICAL: Linear move endpoint {target_pos_world} is unreachable. Action aborted before execution."
+            print(msg)
+            self.log(msg)
+            return
+
+        # 5. Execution Loop
+        print(f"[{self.robot_name}] Executing linear move to {target_pos_world}...")
+        action_start = time.perf_counter()
+        last_joints = current_state.joint_positions
+
+        for t in range(1, steps + 1):
+            if self.emergency_stop_flag: break
+            
+            alpha = t / steps
+            # Linear position interpolation
+            interp_pos_world = start_pos_world + alpha * (target_pos_world - start_pos_world)
+            # Slerp orientation interpolation
+            r_world_tool_interp = slerp_func(alpha)
+            
+            # Convert to Local Frame and Link6 Frame
+            r_world_link6_interp = r_world_tool_interp * self.r_tool_link6
+            p_local = r_base.inv().apply(interp_pos_world - self.base_pos)
+            r_local = r_base.inv() * r_world_link6_interp
+            
+            target_pose_local = np.concatenate([p_local, r_local.as_quat()])
+            
+            # Solve IK (passing previous solution as seed for continuity)
+            target_joints = self.kinematics.inverse_kinematics(
+                target_pose_local, last_joints, orientation_needed=True
+            )
+            
+            if target_joints is None:
+                msg = f"[{self.robot_name}] CRITICAL: Linear path blocked or unreachable at step {t}/{steps}. Stopping."
+                print(msg)
+                self.log(msg)
+                return
+
+            # --- High Precision Sync ---
+            # Wait BEFORE issuing the command to ensure commands are delivered at exact intervals
+            target_step_time = action_start + (t * self.control_dt)
+            while True:
+                remaining = target_step_time - time.perf_counter()
+                if remaining <= 0:
+                    break
+                if remaining > 0.002:
+                    time.sleep(0.001)
+
+            # --- Precision Delivery ---
+            self._update_ctrl(target_joints)
+            last_joints = target_joints
+        
+        self._wait_settle(last_joints)
 
     def action_open_gripper(self):
         """Handler for 'open_gripper'."""
@@ -233,16 +322,29 @@ class PiperController(BaseRobotController):
         # Interpolated move
         start_joints = self._get_joint_positions()
         steps = int(duration / self.control_dt)
+        if steps <= 0: steps = 1
+        action_start = time.perf_counter()
         
-        for t in range(steps):
+        for t in range(1, steps + 1):
             if self.emergency_stop_flag: break
+            
             alpha = t / steps
             # Cubic easing (smooth start/stop)
             alpha_smooth = 3*alpha**2 - 2*alpha**3
             
             interp_joints = start_joints + alpha_smooth * (target_joints - start_joints)
+            
+            # --- High Precision Sync ---
+            target_step_time = action_start + (t * self.control_dt)
+            while True:
+                remaining = target_step_time - time.perf_counter()
+                if remaining <= 0:
+                    break
+                if remaining > 0.002:
+                    time.sleep(0.001)
+
+            # --- Precision Delivery ---
             self._update_ctrl(interp_joints)
-            time.sleep(self.control_dt)
             
         self._wait_settle(target_joints)
 
@@ -464,9 +566,6 @@ class PiperKinematics:
                 continue
 
         if best_sol is not None:
-            # We return the best found solution even if error is slightly high,
-            # as it's better than nothing, but users might want to know.
-            # For now, we trust the "best" one.
             return best_sol[1:7]
             
         return None
