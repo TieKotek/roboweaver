@@ -106,7 +106,7 @@
             {
                 "action": "move_cartesian",
                 "parameters": {
-                    "pose": [0.8, -0.82, 0.22],
+                    "pose": [0.8, -0.80, 0.22],
                     "euler": [90, 45, -90],
                     "duration": 3.0
                 },
@@ -204,7 +204,7 @@
             {
                 "action": "move_cartesian",
                 "parameters": {
-                    "pose": [0.0, -0.82, 0.22],
+                    "pose": [0.0, -0.8, 0.22],
                     "euler": [90, 45, -90],
                     "duration": 3.0
                 },
@@ -262,7 +262,7 @@
         "base_pos": [0.0, 0.2, 0.0],
         "base_yaw": 90.0,
         "sequence": [
-            { "action": "idle", "parameters": { "duration": 32 } },
+            { "action": "idle", "parameters": { "duration": 30 } },
             { "action": "move_straight", "parameters": { "distance": 0.4, "direction": "forward" } }
         ]
     },
@@ -272,7 +272,7 @@
         "base_pos": [0.8, 0.2, 0.0],
         "base_yaw": 90.0,
         "sequence": [
-            { "action": "idle", "parameters": { "duration": 32 } },
+            { "action": "idle", "parameters": { "duration": 30 } },
             { "action": "move_straight", "parameters": { "distance": 0.4, "direction": "forward" } }
         ]
     },
@@ -292,16 +292,16 @@
             },
             {
                 "action": "idle",
-                "parameters": { "duration": 35.0 }
+                "parameters": { "duration": 30.0 }
             },
             {
                 "action": "open_gripper",
                 "description": "Open gripper before picking"
             },
             {
-                "action": "move_cartesian",
+                "action": "move_linear",
                 "parameters": {
-                    "pose": [0.0, 0.55, 0.35],
+                    "pose": [0.0, 0.57, 0.33],
                     "euler": [90, 45, -90],
                     "duration": 3.0
                 },
@@ -312,7 +312,7 @@
                 "description": "Close gripper after picking"
             },
             {
-                "action": "move_cartesian",
+                "action": "move_linear",
                 "parameters": {
                     "pose": [0.0, 0.6, 0.8],
                     "euler": [90, 30, -90],
@@ -325,7 +325,7 @@
                 "parameters": { "duration": 1.0 }
             },
             {
-                "action": "move_cartesian",
+                "action": "move_linear",
                 "parameters": {
                     "pose": [0.4, 1.3, 0.5],
                     "euler": [90, 30, 0],
@@ -334,7 +334,7 @@
                 "description": "Move to place position"
             },
             {
-                "action": "move_cartesian",
+                "action": "move_linear",
                 "parameters": {
                     "pose": [0.4, 1.3, 0.35],
                     "euler": [90, 45, 0],
@@ -347,7 +347,7 @@
                 "description": "Open gripper to release the block"
             },
             {
-                "action": "move_cartesian",
+                "action": "move_linear",
                 "parameters": {
                     "pose": [0.4, 1.3, 0.5],
                     "euler": [90, 30, 0],
@@ -356,7 +356,7 @@
                 "description": "Move up after placing"
             },
             {
-                "action": "move_cartesian",
+                "action": "move_linear",
                 "parameters": {
                     "pose": [0.0, 0.6, 0.8],
                     "euler": [90, 30, -90],
@@ -372,7 +372,7 @@
         "base_pos": [0.8, 1.1, 0.3],
         "sequence": [
             {
-                "action": "move_cartesian",
+                "action": "move_linear",
                 "parameters": {
                     "pose": [0.8, 0.6, 0.8],
                     "euler": [90, 30, -90],
@@ -382,16 +382,16 @@
             },
             {
                 "action": "idle",
-                "parameters": { "duration": 35.0 }
+                "parameters": { "duration": 30.0 }
             },
             {
                 "action": "open_gripper",
                 "description": "Open gripper before picking"
             },
             {
-                "action": "move_cartesian",
+                "action": "move_linear",
                 "parameters": {
-                    "pose": [0.8, 0.55, 0.35],
+                    "pose": [0.8, 0.57, 0.33],
                     "euler": [90, 45, -90],
                     "duration": 3.0
                 },
@@ -402,7 +402,7 @@
                 "description": "Close gripper after picking"
             },
             {
-                "action": "move_cartesian",
+                "action": "move_linear",
                 "parameters": {
                     "pose": [0.8, 0.6, 0.8],
                     "euler": [90, 30, -90],
@@ -424,7 +424,7 @@
                 "description": "Move to place position"
             },
             {
-                "action": "move_cartesian",
+                "action": "move_linear",
                 "parameters": {
                     "pose": [0.4, 1.3, 0.37],
                     "euler": [90, 45, 180],
@@ -437,7 +437,7 @@
                 "description": "Open gripper to release the block"
             },
             {
-                "action": "move_cartesian",
+                "action": "move_linear",
                 "parameters": {
                     "pose": [0.4, 1.3, 0.5],
                     "euler": [90, 30, 180],

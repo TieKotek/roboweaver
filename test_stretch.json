@@ -1,0 +1,80 @@
+{
+    "description": "Hello Robot Stretch Integration Test",
+    "scene": {
+        "friction": [
+            3.0,
+            0.005,
+            0.0001
+        ],
+        "solimp": [
+            0.95,
+            0.99,
+            0.001
+        ],
+        "solref": [
+            0.004,
+            1
+        ],
+        "objects": []
+    },
+    "robots": [
+        {
+            "name": "stretch_1",
+            "type": "stretch",
+            "base_pos": [
+                0,
+                0,
+                0.0
+            ],
+            "base_yaw": 0,
+            "sequence": [
+                {
+                    "action": "idle",
+                    "parameters": {
+                        "duration": 1
+                    },
+                    "description": "wait for 1 seconds"
+                },
+                {
+                    "action": "move_base",
+                    "parameters": {
+                        "distance": 0.5
+                    }
+                },
+                {
+                    "action": "rotate_base",
+                    "parameters": {
+                        "angle_deg": 90.0
+                    }
+                },
+                {
+                    "action": "rotate_base",
+                    "parameters": {
+                        "angle_deg": -90.0
+                    }
+                },
+                {
+                    "action": "move_ee",
+                    "parameters": {
+                        "reach": 0.9,
+                        "height": 1.0,
+                        "ee_speed": 0.2
+                    },
+                    "description": "精确移动到距离中心0.9m，高度1.0m的位置"
+                },
+                {
+                    "action": "move_ee",
+                    "parameters": {
+                        "reach": 0.5,
+                        "height": 0.3,
+                        "ee_speed": 0.2
+                    },
+                    "description": "精确移动到距离中心0.5m，高度0.3m的位置"
+                },
+                {
+                    "action": "home"
+                }
+            ]
+        }
+    ]
+}

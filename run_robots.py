@@ -22,10 +22,14 @@ import numpy as np
 from common.robot_api import BaseRobotController
 from piper_control.piper_controller import PiperController
 from rbtheron_control.rbtheron_controller import RbtheronController
+from tracer_control.tracer_controller import TracerController
+from stretch_control.stretch_controller import StretchController
 
 ROBOT_CLASSES = {
     "piper": PiperController,
     "rbtheron": RbtheronController,
+    "tracer": TracerController,
+    "stretch": StretchController,
 }
 
 # Optional: Only when controller needs URDF files
@@ -36,7 +40,8 @@ ROBOT_URDFS = {
 ROBOT_XML_TEMPLATES = {
     "piper": "piper_control/agilex_piper/piper.xml",
     "rbtheron": "rbtheron_control/rbtheron/rbtheron.xml",
-}
+    "tracer": "tracer_control/agilex_tracer2/tracer2.xml",
+    "stretch": "stretch_control/hello_robot_stretch_3/stretch.xml",}
 
 # --- Helper Functions ---
 
@@ -91,6 +96,10 @@ class SceneBuilder:
         option.set("integrator", "implicitfast")
         option.set("cone", "elliptic")
         option.set("impratio", "100") # Higher impratio for stable grasping
+        
+        # New: Allow override timestep from JSON
+        ts_val = scene_conf.get("timestep", 0.002)
+        option.set("timestep", str(ts_val))
 
         # Ensure sections exist
         for sec in ["worldbody", "actuator", "sensor", "contact", "equality", "asset", "default"]:
@@ -158,8 +167,9 @@ class SceneBuilder:
         xml_dir = os.path.dirname(xml_path)
         compiler = root.find("compiler")
         mesh_dir = ""
-        if compiler is not None and "meshdir" in compiler.attrib:
-            mesh_dir = compiler.get("meshdir")
+        if compiler is not None:
+            # Support both old 'meshdir' and new 'assetdir'
+            mesh_dir = compiler.get("assetdir") or compiler.get("meshdir") or ""
         
         # The base path for assets from this XML
         asset_base_path = os.path.join(xml_dir, mesh_dir)
@@ -181,20 +191,21 @@ class SceneBuilder:
             for child in elem:
                 rename_attrs(child, ignore_class)
 
-        # 1. Assets (Mesh/Material) - Deduplicate by name
+        # 1. Assets (Mesh/Material/Texture) - Deduplicate by name
         target_asset = scene_root.find("asset")
         src_asset = root.find("asset")
         if src_asset is not None:
             for item in src_asset:
-                # Handle Mesh Paths
-                if item.tag == "mesh":
-                    file_path = item.get("file")
+                # Handle Paths for Meshes and Textures
+                attr_to_fix = "file" if item.tag in ["mesh", "texture"] else None
+                if attr_to_fix:
+                    file_path = item.get(attr_to_fix)
                     if file_path and not os.path.isabs(file_path):
                         # Update to full relative path
                         new_path = os.path.join(asset_base_path, file_path)
                         # Normalize path separators
                         new_path = new_path.replace('\\', '/')
-                        item.set("file", new_path)
+                        item.set(attr_to_fix, new_path)
 
                 name = item.get("name") or item.get("file") 
                 if name and name not in self.included_assets:
@@ -256,6 +267,31 @@ class SceneBuilder:
                 new_item = self._copy_elem(item)
                 rename_attrs(new_item)
                 target_eq.append(new_item)
+
+        # 7. Tendons
+        target_tendon = scene_root.find("tendon")
+        if target_tendon is None and root.find("tendon") is not None:
+            target_tendon = ET.SubElement(scene_root, "tendon")
+        
+        src_tendon = root.find("tendon")
+        if src_tendon is not None:
+            for item in src_tendon:
+                new_item = self._copy_elem(item)
+                rename_attrs(new_item)
+                target_tendon.append(new_item)
+
+        # 8. Keyframes
+        target_key = scene_root.find("keyframe")
+        if target_key is None and root.find("keyframe") is not None:
+            target_key = ET.SubElement(scene_root, "keyframe")
+        
+        src_key = root.find("keyframe")
+        if src_key is not None:
+            for item in src_key:
+                new_item = self._copy_elem(item)
+                # Apply prefix to keyframe names to avoid conflicts
+                rename_attrs(new_item)
+                target_key.append(new_item)
 
     def _copy_elem(self, elem):
         import copy
@@ -325,7 +361,7 @@ def main():
     parser.add_argument("--headless", action="store_true")
     args = parser.parse_args()
 
-    with open(args.config, 'r') as f:
+    with open(args.config, 'r', encoding='utf-8') as f:
         config = json.load(f)
 
     builder = SceneBuilder()

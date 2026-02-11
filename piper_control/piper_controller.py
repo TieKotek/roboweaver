@@ -39,20 +39,27 @@ class PiperController(BaseRobotController):
     # --- Interface Implementation ---
 
     def get_robot_state(self) -> PiperState:
-        # FK returns Pose of Link6 in Base Frame
-        ee_pose_link6 = self.kinematics.forward_kinematics(self._get_joint_positions())
-        pos = ee_pose_link6[:3]
-        quat_link6 = ee_pose_link6[3:] # [x, y, z, w]
+        # 1. Get Local Pose from Kinematics (relative to base)
+        ee_pose_local = self.kinematics.forward_kinematics(self._get_joint_positions())
+        p_local = ee_pose_local[:3]
+        q_local = ee_pose_local[3:] # [x, y, z, w]
         
-        r_world_link6 = R.from_quat(quat_link6)
+        # 2. Transform to World Frame
+        r_base = R.from_quat([self.base_quat[1], self.base_quat[2], self.base_quat[3], self.base_quat[0]])
+        
+        # World Position: p_world = p_base + R_base * p_local
+        p_world = self.base_pos + r_base.apply(p_local)
+        
+        # World Orientation: R_world = R_base * R_local
+        r_world_link6 = r_base * R.from_quat(q_local)
         r_world_tool = r_world_link6 * self.r_link6_tool
         
         # Reconstruct State with Tool Frame
-        ee_pose_tool = np.concatenate([pos, r_world_tool.as_quat()])
+        ee_pose_tool = np.concatenate([p_world, r_world_tool.as_quat()])
         euler = r_world_tool.as_euler('xyz', degrees=True)
         
         return PiperState(
-            timestamp=time.time(),
+            timestamp=self.data.time,
             joint_positions=self._get_joint_positions(),
             end_effector_pose=ee_pose_tool,
             end_effector_euler=euler
@@ -154,118 +161,109 @@ class PiperController(BaseRobotController):
                           **kwargs):
         """
         Handler for 'move_linear' action. Moves the end-effector in a straight line 
-        to the target pose at a constant speed.
-        
-        Parameters:
-        - pose: [x, y, z] target position in World Frame.
-        - quat: [x, y, z, w] target orientation (Optional).
-        - euler: [x, y, z] target orientation in degrees (Optional).
-        - duration: Total time for the movement. If None, estimated based on distance.
+        to the target pose in Local Space to ensure perfect symmetry.
         """
         if quat is not None and euler is not None:
             print(f"[{self.robot_name}] Error: Cannot provide both 'quat' and 'euler'.")
             return
 
-        # 1. Setup Target Orientation
+        # 1. Setup Base and Target
+        r_base = R.from_quat([self.base_quat[1], self.base_quat[2], self.base_quat[3], self.base_quat[0]])
         target_pos_world = np.array(pose[:3])
-        orientation_constrained = False
-        r_world_tool_end = R.identity()
-
+        
+        # Determine Target Tool Rotation in Local Space
         if quat is not None:
-            orientation_constrained = True
             r_world_tool_end = R.from_quat(quat)
         elif euler is not None:
-            orientation_constrained = True
             r_world_tool_end = R.from_euler('xyz', euler, degrees=True)
-            
-        # 2. Get Current Pose
-        current_state = self.get_robot_state()
-        start_pos_world = current_state.end_effector_pose[:3]
-        r_world_tool_start = R.from_quat(current_state.end_effector_pose[3:])
+        else:
+            # Maintain current world orientation if not specified
+            current_state = self.get_robot_state()
+            r_world_tool_end = R.from_quat(current_state.end_effector_pose[3:])
+        
+        r_local_tool_end = r_base.inv() * r_world_tool_end
+        target_pos_local = r_base.inv().apply(target_pos_world - self.base_pos)
 
-        # If target orientation isn't provided, maintain current orientation to keep motion stable
-        if not orientation_constrained:
-            r_world_tool_end = r_world_tool_start
-            orientation_constrained = True
+        # 2. Get Current Local Pose
+        current_joints = self._get_joint_positions()
+        ee_pose_local_start = self.kinematics.forward_kinematics(current_joints)
+        start_pos_local = ee_pose_local_start[:3]
+        # Current local orientation of Link6. Convert to Tool Frame.
+        r_local_link6_start = R.from_quat(ee_pose_local_start[3:])
+        r_local_tool_start = r_local_link6_start * self.r_link6_tool
 
         # 3. Timing and Steps
         if duration is None:
-            dist = np.linalg.norm(target_pos_world - start_pos_world)
-            duration = max(dist / 0.1, 0.5) # Default 0.1 m/s, min 0.5s
+            dist = np.linalg.norm(target_pos_local - start_pos_local)
+            duration = max(dist / 0.1, 0.5)
         
         steps = int(duration / self.control_dt)
         if steps <= 0: steps = 1
 
-        # 4. Interpolation Setup (SLERP for orientation)
+        # 4. Interpolation Setup (Done in Local Space for symmetry)
         key_times = [0, 1]
-        key_rots = R.from_quat([r_world_tool_start.as_quat(), r_world_tool_end.as_quat()])
+        key_rots = R.from_quat([r_local_tool_start.as_quat(), r_local_tool_end.as_quat()])
         slerp_func = Slerp(key_times, key_rots)
 
-        # Base Transform (for local conversion)
-        r_base = R.from_quat([self.base_quat[1], self.base_quat[2], self.base_quat[3], self.base_quat[0]])
+        # Pre-calculate target for IK (Link6 Frame)
+        r_local_link6_target = r_local_tool_end * self.r_tool_link6
+        target_pose_local_end = np.concatenate([target_pos_local, r_local_link6_target.as_quat()])
 
-        # --- PRE-CHECK: Can we even reach the end? ---
-        r_world_link6_end = r_world_tool_end * self.r_tool_link6
-        p_local_end = r_base.inv().apply(target_pos_world - self.base_pos)
-        r_local_end = r_base.inv() * r_world_link6_end
-        target_pose_local_end = np.concatenate([p_local_end, r_local_end.as_quat()])
-        
+        # PRE-CHECK
         test_joints = self.kinematics.inverse_kinematics(
-            target_pose_local_end, current_state.joint_positions, orientation_needed=True
+            target_pose_local_end, current_joints, orientation_needed=True
         )
         if test_joints is None:
-            msg = f"[{self.robot_name}] CRITICAL: Linear move endpoint {target_pos_world} is unreachable. Action aborted before execution."
+            msg = f"[{self.robot_name}] CRITICAL: Linear move endpoint unreachable. Action aborted."
             print(msg)
             self.log(msg)
             return
 
         # 5. Execution Loop
-        print(f"[{self.robot_name}] Executing linear move to {target_pos_world}...")
-        action_start = time.perf_counter()
-        last_joints = current_state.joint_positions
+        print(f"[{self.robot_name}] Executing linear move (10Hz IK, Sim-Time Synced)...")
+        total_steps = int(duration / self.control_dt)
+        ik_step_skip = 10 # Calculate IK every 10 steps (100ms)
+        last_joints = current_joints
+        target_joints = current_joints
+        
+        # Start timer AFTER pre-checks and initialization
+        sim_start_time = self.data.time
 
-        for t in range(1, steps + 1):
+        for t in range(1, total_steps + 1):
             if self.emergency_stop_flag: break
             
-            alpha = t / steps
-            # Linear position interpolation
-            interp_pos_world = start_pos_world + alpha * (target_pos_world - start_pos_world)
-            # Slerp orientation interpolation
-            r_world_tool_interp = slerp_func(alpha)
-            
-            # Convert to Local Frame and Link6 Frame
-            r_world_link6_interp = r_world_tool_interp * self.r_tool_link6
-            p_local = r_base.inv().apply(interp_pos_world - self.base_pos)
-            r_local = r_base.inv() * r_world_link6_interp
-            
-            target_pose_local = np.concatenate([p_local, r_local.as_quat()])
-            
-            # Solve IK (passing previous solution as seed for continuity)
-            target_joints = self.kinematics.inverse_kinematics(
-                target_pose_local, last_joints, orientation_needed=True
-            )
-            
-            if target_joints is None:
-                msg = f"[{self.robot_name}] CRITICAL: Linear path blocked or unreachable at step {t}/{steps}. Stopping."
-                print(msg)
-                self.log(msg)
-                return
+            # 1. Update IK only every 10 steps to save CPU
+            if t == 1 or t % ik_step_skip == 0 or t == total_steps:
+                alpha = t / total_steps
+                # Interpolate in Local Space
+                interp_pos_local = start_pos_local + alpha * (target_pos_local - start_pos_local)
+                r_local_tool_interp = slerp_func(alpha)
+                r_local_link6_interp = r_local_tool_interp * self.r_tool_link6
+                target_pose_local = np.concatenate([interp_pos_local, r_local_link6_interp.as_quat()])
+                
+                # Use fewer iterations for incremental IK to speed up
+                sol = self.kinematics.inverse_kinematics(
+                    target_pose_local, last_joints, orientation_needed=True, max_iter=20
+                )
+                if sol is not None:
+                    target_joints = sol
+                    last_joints = sol
+                else:
+                    msg = f"[{self.robot_name}] CRITICAL: Linear path blocked at step {t}/{total_steps}."
+                    print(msg)
+                    self.log(msg)
+                    return
 
-            # --- High Precision Sync ---
-            # Wait BEFORE issuing the command to ensure commands are delivered at exact intervals
-            target_step_time = action_start + (t * self.control_dt)
-            while True:
-                remaining = target_step_time - time.perf_counter()
-                if remaining <= 0:
-                    break
-                if remaining > 0.002:
-                    time.sleep(0.001)
+            # 2. Simulation Time Sync
+            target_sim_time = sim_start_time + (t * self.control_dt)
+            while self.data.time < target_sim_time:
+                if self.emergency_stop_flag: break
+                time.sleep(0.001)
 
-            # --- Precision Delivery ---
+            # 3. Precision Delivery (Control target is held constant between IK updates)
             self._update_ctrl(target_joints)
-            last_joints = target_joints
         
-        self._wait_settle(last_joints)
+        self._wait_settle(target_joints, timeout=1.0)
 
     def action_open_gripper(self):
         """Handler for 'open_gripper'."""
@@ -323,7 +321,7 @@ class PiperController(BaseRobotController):
         start_joints = self._get_joint_positions()
         steps = int(duration / self.control_dt)
         if steps <= 0: steps = 1
-        action_start = time.perf_counter()
+        sim_start_time = self.data.time
         
         for t in range(1, steps + 1):
             if self.emergency_stop_flag: break
@@ -334,14 +332,11 @@ class PiperController(BaseRobotController):
             
             interp_joints = start_joints + alpha_smooth * (target_joints - start_joints)
             
-            # --- High Precision Sync ---
-            target_step_time = action_start + (t * self.control_dt)
-            while True:
-                remaining = target_step_time - time.perf_counter()
-                if remaining <= 0:
-                    break
-                if remaining > 0.002:
-                    time.sleep(0.001)
+            # 2. Simulation Time Sync
+            target_sim_time = sim_start_time + (t * self.control_dt)
+            while self.data.time < target_sim_time:
+                if self.emergency_stop_flag: break
+                time.sleep(0.001)
 
             # --- Precision Delivery ---
             self._update_ctrl(interp_joints)
@@ -358,12 +353,11 @@ class PiperController(BaseRobotController):
 
     def _move_gripper(self, target_position: float):
         """
-        Advanced gripper control with stall detection.
-        Waits until the gripper reaches the target OR stalls (grips object).
+        Advanced gripper control with stall detection using simulation time.
         """
         self._set_gripper_ctrl(target_position)
 
-        start_time = time.time()
+        sim_start_time = self.data.time
         timeout = 2.0
         
         pos_tolerance = 0.001
@@ -372,25 +366,21 @@ class PiperController(BaseRobotController):
         stall_counter = 0
         
         stalled = False
-        stall_time = 0.0
-        settle_duration = 0.5 # Hold force for a bit to stabilize grasp
+        stall_sim_time = 0.0
+        settle_duration = 0.5 # Simulation seconds
 
-        while time.time() - start_time < timeout:
+        while self.data.time - sim_start_time < timeout:
             if self.emergency_stop_flag: break
 
-            # Get gripper state
-            # Note: For slide joint, qpos is length
             qpos_adr = self.model.jnt_qposadr[self.kinematics.gripper_id]
             qvel_adr = self.model.jnt_dofadr[self.kinematics.gripper_id]
             
             current_pos = self.data.qpos[qpos_adr]
             current_vel = self.data.qvel[qvel_adr]
 
-            # 1. Target Reached?
             if abs(current_pos - target_position) < pos_tolerance:
                 break
 
-            # 2. Stall Detection (Only relevant when closing, i.e., target < current)
             if target_position < current_pos: 
                 if abs(current_vel) < vel_tolerance:
                     stall_counter += 1
@@ -400,17 +390,15 @@ class PiperController(BaseRobotController):
                 if stall_counter >= stall_steps:
                     if not stalled:
                         stalled = True
-                        stall_time = time.time()
-                        # print(f"[{self.robot_name}] Gripper stall detected.")
+                        stall_sim_time = self.data.time
                     
-                    if time.time() - stall_time > settle_duration:
-                        # print(f"[{self.robot_name}] Grasp stabilized.")
+                    if self.data.time - stall_sim_time > settle_duration:
                         break
             
-            time.sleep(self.control_dt)
+            time.sleep(0.001)
         
-        # Check if we timed out
-        if time.time() - start_time >= timeout:
+        # Check if we timed out (using sim time)
+        if self.data.time - sim_start_time >= timeout:
             # print(f"[{self.robot_name}] Gripper timeout! Target: {target_position}")
             pass
 
@@ -418,15 +406,14 @@ class PiperController(BaseRobotController):
         return np.all(joints >= self.kinematics.limits[:, 0]) and \
                np.all(joints <= self.kinematics.limits[:, 1])
 
-    def _wait_settle(self, target_joints: np.ndarray):
-        """Wait for physical joints to reach target."""
-        timeout = 2.0
-        start = time.time()
-        while time.time() - start < timeout:
+    def _wait_settle(self, target_joints: np.ndarray, timeout: float = 2.0):
+        """Wait for physical joints to reach target using simulation time."""
+        sim_start_time = self.data.time
+        while self.data.time - sim_start_time < timeout:
             curr = self._get_joint_positions()
             if np.allclose(curr, target_joints, atol=0.1):
                 return
-            time.sleep(0.01)
+            time.sleep(0.001)
 
 
 class PiperKinematics:
@@ -435,7 +422,6 @@ class PiperKinematics:
         self.model = model
         
         # 1. Setup Names
-        # If prefix is "left_arm", joint is "left_arm_joint1"
         p = f"{prefix}_" if prefix else ""
         self.joint_names = [f"{p}joint{i}" for i in range(1, 7)]
         self.gripper_name = f"{p}joint7"
@@ -445,23 +431,18 @@ class PiperKinematics:
         self.joint_ids = [mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, n) for n in self.joint_names]
         self.gripper_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, self.gripper_name)
         
-        # Actuator IDs might differ from joint IDs
         self.actuator_ids = []
         for n in self.joint_names:
             aid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, n)
-            if aid == -1:
-                print(f"WARNING: Actuator '{n}' not found!")
             self.actuator_ids.append(aid)
         
         gripper_act_name = f"{p}gripper" if prefix else "gripper"
         self.gripper_actuator_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, gripper_act_name)
-        if self.gripper_actuator_id == -1:
-             print(f"WARNING: Gripper Actuator '{gripper_act_name}' not found!")
 
         # 3. IK Chain
-        # Note: IKPy chain mask needs to match the URDF structure
-        active_links_mask = [False, True, True, True, True, True, True, False, False]
-        self.chain = ikpy.chain.Chain.from_urdf_file(urdf_path, active_links_mask=active_links_mask)
+        # Note: IKPy chain mask needs to match the URDF structure (9 links after parsing)
+        self.active_links_mask = [False, True, True, True, True, True, True, False, False]
+        self.chain = ikpy.chain.Chain.from_urdf_file(urdf_path, active_links_mask=self.active_links_mask)
 
         self.limits = np.array([
             [-2.618, 2.618], [0, 3.14], [-2.697, 0],
@@ -474,21 +455,15 @@ class PiperKinematics:
 
     def _init_seeds(self):
         """
-        Pre-calculate joint configurations for standard poses (Forward, Left, Back, Right).
-        These serve as restart seeds for IK to avoid local minima during large movements.
+        Pre-calculate joint configurations for standard poses.
         """
-        # Relative to base (x, y, z)
         seed_points = [
             [0.4, 0.0, 0.4],   # Forward
             [0.0, 0.4, 0.4],   # Left
             [-0.4, 0.0, 0.4],  # Back
             [0.0, -0.4, 0.4]   # Right
         ]
-        
-        # Neutral orientation (Identity matrix)
         dummy_rot = np.eye(3)
-        
-        # Initial guess for the solver to find the seeds (Flat zeros)
         initial_guess = np.zeros(9)
         
         for pt in seed_points:
@@ -496,7 +471,6 @@ class PiperKinematics:
             target[:3, 3] = pt
             target[:3, :3] = dummy_rot
             try:
-                # Solve for these "Anchor" poses
                 sol = self.chain.inverse_kinematics_frame(target, initial_position=initial_guess)
                 self.seeds.append(sol)
             except Exception:
@@ -510,23 +484,16 @@ class PiperKinematics:
         quat = R.from_matrix(mat[:3, :3]).as_quat() # [x, y, z, w]
         return np.concatenate([pos, quat])
 
-    def inverse_kinematics(self, target_pose, current_joints, orientation_needed):
-        # target_pose is [x, y, z, qx, qy, qz, qw] or [x, y, z]
+    def inverse_kinematics(self, target_pose, current_joints, orientation_needed, max_iter=None):
         if len(target_pose) == 3:
-            target_pose = np.concatenate([target_pose, [0, 0, 0, 1]]) # Identity quat [x,y,z,w]
+            target_pose = np.concatenate([target_pose, [0, 0, 0, 1]])
             
         pos = target_pose[:3]
-        # target_pose[3:] should be [x, y, z, w]
         rot = R.from_quat(target_pose[3:]).as_matrix()
         target_mat = np.eye(4)
         target_mat[:3, :3] = rot
         target_mat[:3, 3] = pos
 
-        # --- Multi-Seed IK Strategy ---
-        # 1. Try from Current Configuration (Fastest, best for continuity)
-        # 2. Try from Pre-computed Seeds (Good for large jumps/orientation flips)
-        # 3. Try from Zero/Home (Fallback)
-        
         candidates_to_try = []
         
         # Seed 1: Current Joints
@@ -534,24 +501,25 @@ class PiperKinematics:
         current_full[1:7] = current_joints
         candidates_to_try.append(current_full)
         
-        # Seed 2..5: Cached Seeds
         candidates_to_try.extend(self.seeds)
-        
-        # Seed 6: Zero
         candidates_to_try.append(np.zeros(9))
 
         best_sol = None
         best_error = float('inf')
-        acceptance_tolerance = 0.01 # 1cm position error acceptable
+        acceptance_tolerance = 0.01
 
         for initial_guess in candidates_to_try:
             try:
-                sol = self.chain.inverse_kinematics_frame(
-                    target_mat, initial_position=initial_guess, 
-                    orientation_mode="all" if orientation_needed else None
-                )
+                ik_params = {
+                    "target": target_mat,
+                    "initial_position": initial_guess,
+                    "orientation_mode": "all" if orientation_needed else None
+                }
+                if max_iter:
+                    ik_params["max_iter"] = max_iter
                 
-                # Validation: Check Forward Kinematics of the solution
+                sol = self.chain.inverse_kinematics_frame(**ik_params)
+                
                 fk_mat = self.chain.forward_kinematics(sol)
                 pos_error = np.linalg.norm(fk_mat[:3, 3] - pos)
                 
@@ -559,7 +527,6 @@ class PiperKinematics:
                     best_error = pos_error
                     best_sol = sol
                 
-                # Early exit if good enough
                 if best_error < acceptance_tolerance:
                     break
             except:

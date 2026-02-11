@@ -8,36 +8,60 @@
   },
   "robots": [
     {
-        "name": "arm1",
+        "name": "grB1",
         "type": "piper",
-        "base_pos": [0, 0, 0],
+        "base_pos": [0, -0.4, 0.0],
         "sequence": [
             {
                 "action": "move_cartesian",
                 "parameters": {
-                    "pose": [0, 0.4, 0.3],
-                    "euler": [90, 30, 90],
+                    "pose": [0.0, -0.8, 0.2],
+                    "euler": [90, 30, -90],
                     "duration": 4.0
                 },
-                "description": "MAN"
+                "description": "Move to pick position"
             },
             {
-                "action": "move_linear",
+                "action": "open_gripper",
+                "description": "Open gripper before picking"
+            },
+            {
+                "action": "move_cartesian",
                 "parameters": {
-                    "pose": [0.4, 0, 0.4],
-                    "euler": [90, 30, 0],
-                    "duration": 2.0
+                    "pose": [0.0, -0.80, 0.02],
+                    "euler": [90, 45, -90],
+                    "duration": 3.0
                 },
-                "description": "Test move linear"
-            },
+                "description": "Pick the block"
+            }
+        ]
+    },
+    {
+        "name": "arm1",
+        "type": "piper",
+        "base_pos": [0.8, -0.4, 0],
+        "sequence": [
             {
-                "action": "move_linear",
+                "action": "move_cartesian",
                 "parameters": {
-                    "pose": [0, 0.4, 0.3],
-                    "euler": [90, 30, 90],
+                    "pose": [0.8, -0.8, 0.2],
+                    "euler": [90, 30, -90],
                     "duration": 4.0
                 },
-                "description": "Test move linear back"
+                "description": "Move to pick position"
+            },
+            {
+                "action": "open_gripper",
+                "description": "Open gripper before picking"
+            },
+            {
+                "action": "move_cartesian",
+                "parameters": {
+                    "pose": [0.8, -0.8, 0.02],
+                    "euler": [90, 45, -90],
+                    "duration": 3.0
+                },
+                "description": "Pick the block"
             }
         ]
     }

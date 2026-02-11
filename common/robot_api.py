@@ -83,26 +83,28 @@ class BaseRobotController(ABC):
                     params["duration"] = 0.5
                     target_duration = 0.5
 
-            start_time = time.perf_counter() # High precision timer
+            wall_start = time.perf_counter()
+            sim_start = self.data.time
             try:
                 handler(**params)
-                actual_duration = time.perf_counter() - start_time
+                wall_duration = time.perf_counter() - wall_start
+                sim_duration = self.data.time - sim_start
                 
-                # 2. Check for timing deviation > 20%
+                # 2. Check for timing deviation > 20% (based on Simulation Time)
                 if target_duration is not None and target_duration > 0:
-                    deviation = abs(actual_duration - target_duration) / target_duration
+                    deviation = abs(sim_duration - target_duration) / target_duration
                     if deviation > 0.2:
-                        warn_msg = f"[{self.robot_name}] TIMING WARNING: {action_name} took {actual_duration:.3f}s, " \
-                                   f"expected {target_duration:.3f}s (deviation: {deviation:.1%})"
+                        warn_msg = f"[{self.robot_name}] TIMING WARNING: {action_name} took {sim_duration:.3f}s (sim), " \
+                                   f"expected {target_duration:.3f}s (deviation: {deviation:.1%}). Real time: {wall_duration:.3f}s"
                         print(warn_msg)
                         self.log(warn_msg)
 
                 if print_state:
                     # Log to file ONLY
-                    self.log(f"[{self.robot_name}] {action_name} completed. Actual duration: {actual_duration:.3f}s")
+                    self.log(f"[{self.robot_name}] {action_name} completed. Duration: {sim_duration:.3f}s (sim), {wall_duration:.3f}s (real)")
                     self.log(self.format_state())
                 else:
-                    self.log(f"[{self.robot_name}] {action_name} completed. Actual duration: {actual_duration:.3f}s")
+                    self.log(f"[{self.robot_name}] {action_name} completed. Duration: {sim_duration:.3f}s (sim), {wall_duration:.3f}s (real)")
                 
             except Exception as e:
                  err_msg = f"[{self.robot_name}] Error executing {action_name}: {e}"
@@ -116,10 +118,12 @@ class BaseRobotController(ABC):
     # --- Universal Safety & Utilities ---
 
     def action_idle(self, duration: float = 1.0):
-        """Universal idle."""
+        """Universal idle synced with simulation time."""
         if self.emergency_stop_flag: return
-        # print(f"[{self.robot_name}] Idling for {duration}s...")
-        time.sleep(duration)
+        start_sim_time = self.data.time
+        while self.data.time - start_sim_time < duration:
+            if self.emergency_stop_flag: break
+            time.sleep(0.001) # Yield CPU to physics thread
 
     def action_emergency_stop(self):
         """Universal E-Stop."""
