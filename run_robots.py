@@ -20,10 +20,10 @@ import numpy as np
 
 # --- Robot Registry ---
 from common.robot_api import BaseRobotController
-from piper_control.piper_controller import PiperController
-from rbtheron_control.rbtheron_controller import RbtheronController
-from tracer_control.tracer_controller import TracerController
-from stretch_control.stretch_controller import StretchController
+from robots.piper_control.piper_controller import PiperController
+from robots.rbtheron_control.rbtheron_controller import RbtheronController
+from robots.tracer_control.tracer_controller import TracerController
+from robots.stretch_control.stretch_controller import StretchController
 
 ROBOT_CLASSES = {
     "piper": PiperController,
@@ -34,14 +34,14 @@ ROBOT_CLASSES = {
 
 # Optional: Only when controller needs URDF files
 ROBOT_URDFS = {
-    "piper": "piper_control/agilex_piper/piper_description.urdf",
+    "piper": "robots/piper_control/agilex_piper/piper_description.urdf",
 }
 
 ROBOT_XML_TEMPLATES = {
-    "piper": "piper_control/agilex_piper/piper.xml",
-    "rbtheron": "rbtheron_control/rbtheron/rbtheron.xml",
-    "tracer": "tracer_control/agilex_tracer2/tracer2.xml",
-    "stretch": "stretch_control/hello_robot_stretch_3/stretch.xml",}
+    "piper": "robots/piper_control/agilex_piper/piper.xml",
+    "rbtheron": "robots/rbtheron_control/rbtheron/rbtheron.xml",
+    "tracer": "robots/tracer_control/agilex_tracer2/tracer2.xml",
+    "stretch": "robots/stretch_control/hello_robot_stretch_3/stretch.xml",}
 
 # --- Helper Functions ---
 
@@ -57,7 +57,7 @@ def yaw_to_quat(yaw_deg: float) -> List[float]:
 class SceneBuilder:
     """Merges robot XMLs into a single scene."""
     def __init__(self):
-        self.base_scene_path = "piper_control/agilex_piper/scene.xml"
+        self.base_scene_path = "robots/piper_control/agilex_piper/scene.xml"
         self.temp_files = []
         self.included_assets: Set[str] = set() # Track asset names to avoid dups
         self.included_defaults: Set[str] = set() # Track default classes

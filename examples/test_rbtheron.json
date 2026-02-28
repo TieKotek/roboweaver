@@ -1,5 +1,5 @@
 {
-  "description": "RB-Theron Absolute Turn Test",
+  "description": "RB-Theron Test",
   "scene": {
     "friction": [3.0, 0.005, 0.0001],
     "solimp": [0.95, 0.99, 0.001],
