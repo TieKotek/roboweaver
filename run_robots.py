@@ -24,12 +24,14 @@ from robots.piper_control.piper_controller import PiperController
 from robots.rbtheron_control.rbtheron_controller import RbtheronController
 from robots.tracer_control.tracer_controller import TracerController
 from robots.stretch_control.stretch_controller import StretchController
+from robots.skydio_control.skydio_controller import SkydioController
 
 ROBOT_CLASSES = {
     "piper": PiperController,
     "rbtheron": RbtheronController,
     "tracer": TracerController,
     "stretch": StretchController,
+    "skydio": SkydioController,
 }
 
 # Optional: Only when controller needs URDF files
@@ -41,7 +43,9 @@ ROBOT_XML_TEMPLATES = {
     "piper": "robots/piper_control/agilex_piper/piper.xml",
     "rbtheron": "robots/rbtheron_control/rbtheron/rbtheron.xml",
     "tracer": "robots/tracer_control/agilex_tracer2/tracer2.xml",
-    "stretch": "robots/stretch_control/hello_robot_stretch_3/stretch.xml",}
+    "stretch": "robots/stretch_control/hello_robot_stretch_3/stretch.xml",
+    "skydio": "robots/skydio_control/skydio_x2/x2.xml",
+}
 
 # --- Helper Functions ---
 

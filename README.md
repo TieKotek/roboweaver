@@ -20,6 +20,20 @@
 
 ---
 
+### 🤖 Supported Robots
+
+Robotsim natively supports the following heterogeneous robots out of the box:
+
+| Type (`type`) | Robot Model | Category | Key Actions |
+| :--- | :--- | :--- | :--- |
+| `piper` | AgileX PiPER | Robotic Arm | `move_cartesian`, `move_joints`, `open/close_gripper` |
+| `stretch` | Hello Robot Stretch 3 | Mobile Manipulator | `move_distance`, `rotate`, `move_cartesian` |
+| `tracer` | AgileX Tracer 2 | Mobile Base | `move_distance`, `rotate` |
+| `rbtheron` | Robotnik RB-Theron | Mobile Base | `move_distance`, `rotate` |
+| `skydio` | Skydio X2 | Quadrotor Drone | `takeoff`, `land`, `move_distance`, `rotate` |
+
+---
+
 ### 🛠️ Installation
 
 Ensure you have Python 3.8+ and install the dependencies:
@@ -108,7 +122,7 @@ class XXrobotController(BaseRobotController):
 ```
 
 #### Step 2: Prepare Assets (URDF vs XML)
-- **URDF**: Used exclusively for **Kinematics** (IK/FK calculation). It defines the mathematical joint chain.
+- **URDF**: Used exclusively for **Kinematics** (IK/FK calculation). It defines the mathematical joint chain. (Optional)
 - **XML**: Used for **MuJoCo Physics** and visualization. It defines geometries, visual assets (STLs), and actuators.
 
 #### Step 3: Register in `run_robots.py`
@@ -161,6 +175,20 @@ You can now use `"type": "XXrobot"` in your JSON configuration file!
 - **⚙️ 高度可自定义**：纯 JSON 驱动的场景和动作配置，无需重新编译即可更改仿真内容。
 - **📐 统一世界坐标系**：自动处理相对于基座的坐标转换，直接使用全局坐标指挥机器人。
 - **🔌 易于扩展**：模块化设计，通过实现标准 API 即可轻松接入新机器人（机械臂、移动底座等）。
+
+---
+
+### 🤖 支持的机器人
+
+Robotsim 原生支持以下多种类型的机器人：
+
+| 类型 (`type`) | 机器人型号 | 类别 | 核心动作 |
+| :--- | :--- | :--- | :--- |
+| `piper` | AgileX PiPER (松灵) | 机械臂 | `move_cartesian`, `move_joints`, `open/close_gripper` |
+| `stretch` | Hello Robot Stretch 3 | 移动抓取机器人 | `move_distance`, `rotate`, `move_cartesian` |
+| `tracer` | AgileX Tracer 2 (松灵) | 移动底盘 | `move_distance`, `rotate` |
+| `rbtheron` | Robotnik RB-Theron | 移动底盘 | `move_distance`, `rotate` |
+| `skydio` | Skydio X2 | 四旋翼无人机 | `takeoff`, `land`, `move_distance`, `rotate` |
 
 ---
 
@@ -252,7 +280,7 @@ class MyRobotController(BaseRobotController):
 ```
 
 #### 第二步：准备资产 (URDF 与 XML)
-- **URDF**：专门用于 **运动学 (IK/FK)** 计算。定义数学上的关节链结构。
+- **URDF**：专门用于 **运动学 (IK/FK)** 计算。定义数学上的关节链结构。（可选，仅当控制器需要时定义）
 - **XML**：专门用于 **MuJoCo 物理仿真**。定义几何体、视觉资产 (STL) 和执行器。
 
 #### 第三步：在 `run_robots.py` 中注册

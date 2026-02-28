@@ -1,0 +1,20 @@
+{
+  "scene": {
+    "timestep": 0.002
+  },
+  "robots": [
+    {
+      "type": "skydio",
+      "name": "drone1",
+      "base_pos": [0, 0, 0.11],
+      "sequence": [
+        { "action": "takeoff", "parameters": { "altitude": 1.0, "speed": 0.5 } },
+        { "action": "move_distance", "parameters": { "distance": 2.0, "direction": "forward", "speed": 0.5 } },
+        { "action": "rotate", "parameters": { "angle_deg": 90, "speed": 45 } },
+        { "action": "move_distance", "parameters": { "distance": 2.0, "direction": "forward", "speed": 1.0 } },
+        { "action": "move_distance", "parameters": { "distance": 2.0, "direction": "right", "speed": 1.0 } },
+        { "action": "land", "parameters": { "speed": 0.5 } }
+      ]
+    }
+  ]
+}
