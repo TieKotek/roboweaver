@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Universal Multi-Robot Simulation Runner.
-Controls various robots (Piper, Wheel, etc.) in a shared MuJoCo environment.
+RoboWeaver: Heterogeneous Multi-Robot Simulation Framework.
+Dynamically weaves multiple robots (Piper, Stretch, Drones, etc.) into a 
+unified MuJoCo environment via JSON configuration.
 """
 
 import argparse
@@ -360,7 +361,7 @@ class RobotThread(threading.Thread):
         self.running = False
 
 def main():
-    parser = argparse.ArgumentParser(description="Universal Robot Runner")
+    parser = argparse.ArgumentParser(description="RoboWeaver: Heterogeneous Multi-Robot Runner")
     parser.add_argument("config", help="Path to JSON config")
     parser.add_argument("--headless", action="store_true")
     args = parser.parse_args()

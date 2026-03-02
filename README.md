@@ -1,4 +1,4 @@
-# Robotsim: Multi-Agent Embodied AI Research Platform
+# RoboWeaver: Heterogeneous Multi-Robot Simulation Framework
 
 [English](#english) | [中文](#中文)
 
@@ -7,259 +7,78 @@
 <a name="english"></a>
 ## English
 
-**Robotsim** is a high-performance, lightweight, and highly extensible simulation framework built on **MuJoCo**. It is specifically designed as an evaluation and demonstration platform for **Multi-Agent Embodied AI** research, allowing researchers to simulate complex collaborative tasks with heterogeneous robot teams.
+**RoboWeaver** is a high-performance, lightweight, and highly extensible simulation framework built on **MuJoCo**. Unlike static environments, RoboWeaver "weaves" together heterogeneous robots (arms, mobile bases, drones) into a unified simulation fabric on-the-fly using a dynamic scene-building engine. It is specifically designed as an evaluation and demonstration platform for **Multi-Agent Embodied AI** research.
 
-### 🌟 Highlights
+### 🌟 Key Characteristics
 
-- **🚀 Lightweight & Fast**: Minimal overhead with high-fidelity physics powered by MuJoCo.
-- **🤖 Multi-Agent Ready**: Native support for simultaneous control of multiple heterogeneous robots in a shared environment.
-- **🧵 Threaded Execution**: Each robot operates on its own dedicated thread, ensuring non-blocking, real-time control.
-- **⚙️ Highly Customizable**: Purely JSON-driven scene and action configuration. No recompilation needed for scene changes.
-- **📐 Unified World Frame**: Automatic handling of base-relative transformations; command your robots using global coordinates.
-- **🔌 Extensible Architecture**: Modular design makes it easy to plug in new robot types (arms, mobile bases, etc.) by implementing a standard API.
+- **🕸️ Dynamic Scene Weaving**: Automatically merges individual robot XML templates, meshes, and textures into a single consistent MuJoCo scene at runtime via JSON configuration.
+- **🤖 Heterogeneous Teams**: Native support for simultaneous control of diverse robot types (Manipulators, AMRs, UAVs) in a shared physical environment.
+- **🧵 Parallel Execution**: Each robot operates on its own dedicated thread with a standardized asynchronous API, ensuring non-blocking, real-time control.
+- **⚙️ Configuration-Driven**: Define complex tasks, scene layouts, and robot sequences purely through JSON. No recompilation is required.
+- **📐 Universal Coordinate Frame**: Command all robots using global coordinates; the framework handles base-relative transformations automatically.
 
 ---
 
-### 🤖 Supported Robots
+### 🤖 Supported Robot Gallery
 
-Robotsim natively supports the following heterogeneous robots out of the box:
-
-| Type (`type`) | Robot Model | Category | Key Actions |
+| Type (`type`) | Model | Category | Core Capabilities |
 | :--- | :--- | :--- | :--- |
-| `piper` | AgileX PiPER | Robotic Arm | `move_cartesian`, `move_joints`, `open/close_gripper` |
+| `piper` | AgileX PiPER | 6-DOF Arm | `move_cartesian`, `move_joints`, `gripper` |
 | `stretch` | Hello Robot Stretch 3 | Mobile Manipulator | `move_distance`, `rotate`, `move_cartesian` |
-| `tracer` | AgileX Tracer 2 | Mobile Base | `move_distance`, `rotate` |
-| `rbtheron` | Robotnik RB-Theron | Mobile Base | `move_distance`, `rotate` |
-| `skydio` | Skydio X2 | Quadrotor Drone | `takeoff`, `land`, `move_distance`, `rotate` |
-
----
-
-### 🛠️ Installation
-
-Ensure you have Python 3.8+ and install the dependencies:
-
-```bash
-pip install mujoco numpy scipy ikpy
-```
+| `tracer` | AgileX Tracer 2 | Differential AMR | `move_distance`, `rotate` |
+| `rbtheron` | Robotnik RB-Theron | Omnidirectional AMR | `move_distance`, `rotate` |
+| `skydio` | Skydio X2 | Quadrotor UAV | `takeoff`, `land`, `move_distance`, `rotate` |
 
 ---
 
 ### 🚀 Quick Start
 
-Launch the multi-robot pick-and-place evaluation demo:
-
-```bash
-python run_robots.py examples/task_config.json
-```
-
-**Options:**
-- `--headless`: Run without the visual viewer (optimized for training and large-scale testing).
+1. **Install Dependencies**:
+   ```bash
+   pip install mujoco numpy scipy ikpy
+   ```
+2. **Launch a Task**:
+   ```bash
+   python run_robots.py examples/dual_arm_collab.json
+   ```
+   *Use `--headless` to run without the visual viewer.*
 
 ---
 
-### 📝 Configuration Format (`.json`)
+### 📝 Detailed Configuration Guide (`.json`)
 
-The configuration file controls the scene layout and robot behaviors.
+The configuration file controls the entire "weaving" process.
 
-#### 1. Scene Configuration
-Defines the static environment and global physics parameters.
+#### 1. Scene Configuration (`scene`)
+Defines the environment and global physics.
+*   **`friction`** (Array, optional): `[sliding, torsional, rolling]`. 
+    *   *Sliding*: Resistance to linear movement. Higher values (e.g., `2.0`) prevent object slippage.
+    *   *Torsional*: Prevents objects from spinning within a gripper.
+*   **`solimp` / `solref`**: MuJoCo solver parameters. `solref=[0.02, 1]` ensures critical damping (no bouncing).
+*   **`objects`**: List of dynamic objects.
+    *   `type`: "box", "sphere", "cylinder", "capsule".
+    *   `movable`: Boolean. If `true`, a `freejoint` is added for physics simulation.
+    *   `mass`: Lower mass (e.g., `0.01`) often improves grasping stability for small targets.
 
-**Global Physics Parameters:**
-These parameters apply as defaults to all objects and are tuned to improve grasp stability in simulation.
-- **friction** (array, optional): `[sliding, torsional, rolling]` friction coefficients.
-  - *Sliding*: Resistance to linear movement. Higher values (e.g., 2.0-5.0) help prevent objects from slipping.
-  - *Torsional*: Resistance to rotation around the contact normal. Prevents objects from spinning in the grasp.
-- **solimp** (array, optional): `[dmin, dmax, width, mid, power]` - Solver Impedance. Values close to 1 (e.g., `0.95`, `0.99`) make contacts "harder" and more precise.
-- **solref** (array, optional): `[timeconst, dampratio]` - Solver Reference. `dampratio=1` indicates critical damping (no bouncing).
+#### 2. Robot Configuration (`robots`)
+*   **`name`**: Unique identifier for the instance.
+*   **`type`**: Matches the registered type (e.g., `piper`).
+*   **`base_pos` / `base_yaw`**: World placement of the robot base.
+*   **`sequence`**: List of action objects (e.g., `{"action": "move_cartesian", "parameters": {...}}`).
 
-**Object Definition:**
-Each object in the `objects` list supports:
-- **type**: "box", "sphere", "cylinder", "capsule".
-- **size**: [x, y, z] for boxes; [radius] for spheres; [radius, half-length] for others.
-- **pos** / **quat** / **euler**: World placement.
-- **movable**: Boolean. If true, the object has a free joint (physics enabled).
-- **mass**: Mass of the object. Lower mass (e.g., 0.01) often improves stability for small grasping targets.
-
-#### 2. Robot Configuration
-- **name**: Unique identifier for the robot.
-- **type**: Matches the registered type in `run_robots.py`.
-- **base_pos**: `[x, y, z]` World position of the robot base.
-- **sequence**: List of actions to execute.
-
-#### 3. Actions
-Standardized actions dispatched to robot controllers:
+#### 3. Standard Actions
 *   **`move_cartesian`**: Move end-effector to target pose in **World Coordinates**.
-*   **`move_joints`**: Move specific joints to target angles (radians).
-*   **`open_gripper` / `close_gripper`**: End-effector interaction.
-*   **`home`**: Return to default safe position.
-*   **`idle`**: Wait for a duration.
+*   **`move_joints`**: Move joints to target angles (radians).
+*   **`home` / `idle`**: Return to safe pose or wait for a duration.
 
 ---
 
 ### 👩‍💻 Developer Guide: Adding New Robots
 
-Robotsim is designed to be agnostic to robot kinematics and morphology. To add a new robot:
+RoboWeaver is agnostic to robot morphology. Follow these steps to "weave" in a new robot:
 
-#### Step 1: Create the Controller Module
-Create a directory in `robots/` (e.g., `robots/XXrobot_control/`) and a controller file (e.g., `XXrobot_controller.py`). Your class **must** inherit from `BaseRobotController`.
-
-```python
-from common.robot_api import BaseRobotController, RobotState
-
-class XXrobotController(BaseRobotController):
-    def __init__(self, model, data, robot_name, base_pos=None, base_quat=None, **kwargs):
-        super().__init__(model, data, robot_name, base_pos, base_quat)
-        # Initialize your specific kinematics or actuators here
-
-    def get_robot_state(self) -> RobotState:
-        # Return current state (timestamp, pose, etc.)
-        pass
-
-    # Implement specific actions with the prefix 'action_'
-    def action_navigate_to(self, x, y, theta):
-        # Implement your custom logic here
-        pass
-```
-
-#### Step 2: Prepare Assets (URDF vs XML)
-- **URDF**: Used exclusively for **Kinematics** (IK/FK calculation). It defines the mathematical joint chain. (Optional)
-- **XML**: Used for **MuJoCo Physics** and visualization. It defines geometries, visual assets (STLs), and actuators.
-
-#### Step 3: Register in `run_robots.py`
-Open `run_robots.py` and register your new robot type in the global dictionaries:
-
-```python
-# Import your new controller
-from robots.XXrobot_control.XXrobot_controller import XXrobotController
-
-ROBOT_CLASSES = {
-    "piper": PiperController,
-    "XXrobot": XXrobotController,  # <--- Add this
-}
-
-# Optional: Only when controller needs URDF files for IK
-ROBOT_URDFS = {
-    "piper": "robots/piper_control/agilex_piper/piper_description.urdf",
-    "XXrobot": "robots/XXrobot_control/assets/XXrobot.urdf", # <--- Add this
-}
-
-ROBOT_XML_TEMPLATES = {
-    "piper": "robots/piper_control/agilex_piper/piper.xml",
-    "XXrobot": "robots/XXrobot_control/assets/XXrobot.xml",  # <--- Add this
-}
-```
-
-#### Step 4: Usage
-You can now use `"type": "XXrobot"` in your JSON configuration file!
-
----
-
-### 📐 Coordinate Systems
-
-*   **World Frame**: The global MuJoCo frame `(0,0,0)`. All `pose` parameters in the JSON config are interpreted as World Frame coordinates.
-*   **Base Frame**: The local frame of the robot, defined by `base_pos` in the config.
-*   **Transformation**: The `BaseRobotController` (and its subclasses) automatically transforms World Frame targets into Local Frame targets before calculating Inverse Kinematics. Users do **not** need to manually subtract the base offset.
-
----
-
-<a name="中文"></a>
-## 中文
-
-**Robotsim** 是一个基于 **MuJoCo** 构建的高性能、轻量级且高度可扩展的仿真框架。它专门为 **多智能体具身智能 (Multi-Agent Embodied AI)** 研究而设计，是一个理想的评估与展示平台，能够支持研究人员在共享环境中模拟复杂的异构机器人协作任务。
-
-### 🌟 项目亮点
-
-- **🚀 轻量且快速**：基于 MuJoCo 物理引擎，在保持高精度物理模拟的同时将系统开销降至最低。
-- **🤖 原生多智能体支持**：支持在同一场景中同时控制多个不同类型的机器人。
-- **🧵 多线程执行**：每个机器人运行在独立的线程中，确保实时、非阻塞的控制响应。
-- **⚙️ 高度可自定义**：纯 JSON 驱动的场景和动作配置，无需重新编译即可更改仿真内容。
-- **📐 统一世界坐标系**：自动处理相对于基座的坐标转换，直接使用全局坐标指挥机器人。
-- **🔌 易于扩展**：模块化设计，通过实现标准 API 即可轻松接入新机器人（机械臂、移动底座等）。
-
----
-
-### 🤖 支持的机器人
-
-Robotsim 原生支持以下多种类型的机器人：
-
-| 类型 (`type`) | 机器人型号 | 类别 | 核心动作 |
-| :--- | :--- | :--- | :--- |
-| `piper` | AgileX PiPER (松灵) | 机械臂 | `move_cartesian`, `move_joints`, `open/close_gripper` |
-| `stretch` | Hello Robot Stretch 3 | 移动抓取机器人 | `move_distance`, `rotate`, `move_cartesian` |
-| `tracer` | AgileX Tracer 2 (松灵) | 移动底盘 | `move_distance`, `rotate` |
-| `rbtheron` | Robotnik RB-Theron | 移动底盘 | `move_distance`, `rotate` |
-| `skydio` | Skydio X2 | 四旋翼无人机 | `takeoff`, `land`, `move_distance`, `rotate` |
-
----
-
-### 🛠️ 安装
-
-确保您已安装 Python 3.8+ 并安装以下依赖：
-
-```bash
-pip install mujoco numpy scipy ikpy
-```
-
----
-
-### 🚀 快速开始
-
-运行多智能体协作取放评估演示：
-
-```bash
-python run_robots.py examples/task_config.json
-```
-
-**常用选项：**
-- `--headless`：在没有可视化窗口的情况下运行（适用于模型训练和大规模自动化测试）。
-
----
-
-### 📝 配置格式 (`.json`)
-
-配置文件用于控制场景布局和机器人行为。
-
-#### 1. 场景配置 (Scene)
-定义静态环境和全局物理参数。
-
-**全局物理参数：**
-这些参数作为所有物体的默认值，经过调优以提高仿真中的抓取稳定性。
-- **friction** (数组，可选)：`[滑动, 扭转, 滚动]` 摩擦系数。
-  - *滑动*：线性运动阻力。较高的值（如 2.0-5.0）有助于防止物体滑落。
-  - *扭转*：绕接触法线的旋转阻力。防止物体在抓取中旋转。
-- **solimp** (数组，可选)：`[dmin, dmax, width, mid, power]` - 求解器阻抗。接近 1 的值（如 `0.95`, `0.99`）使接触更硬、更精确。
-- **solref** (数组，可选)：`[timeconst, dampratio]` - 求解器参考。`1` 表示临界阻尼（不产生反弹）。
-
-**物体定义：**
-`objects` 列表中的每个物体支持：
-- **type**：几何类型 ("box", "sphere", "cylinder", "capsule")。
-- **size**：box 为 [x, y, z]；其他类型根据定义提供半径或长度。
-- **pos** / **quat** / **euler**：在世界坐标系中的位置和姿态。
-- **movable**：布尔值。设为 true 则启用物理仿真（添加 freejoint）。
-- **mass**：质量。对于小型抓取目标，较低的质量（如 0.01）可提高稳定性。
-
-#### 2. 机器人配置 (Robots)
-- **name**：机器人的唯一标识符。
-- **type**：匹配 `run_robots.py` 中注册的类型。
-- **base_pos**：基座在世界坐标系中的位置 `[x, y, z]`。
-- **sequence**：要执行的动作序列。
-
-#### 3. 动作 (Actions)
-动作会动态分发给机器人控制器。常见动作包括：
-*   **`move_cartesian`**：末端执行器移动到**世界坐标系**下的目标位姿。
-*   **`move_joints`**：移动到目标关节角度（弧度）。
-*   **`open_gripper` / `close_gripper`**：末端执行器控制。
-*   **`home`**：返回默认安全位置。
-*   **`idle`**：等待（与仿真时间同步）。
-
----
-
-### 👩‍💻 开发指南：添加新机器人
-
-Robotsim 的设计与机器人的运动学结构和形态无关。添加新机器人的步骤如下：
-
-#### 第一步：创建控制器模块
-在 `robots/` 目录下创建目录（如 `robots/my_robot_control/`）和控制器文件（如 `my_controller.py`）。您的类**必须**继承自 `BaseRobotController`。
+#### Step 1: Create the Controller
+Create a directory in `robots/` and a controller inheriting from `BaseRobotController`.
 
 ```python
 from common.robot_api import BaseRobotController, RobotState
@@ -267,48 +86,140 @@ from common.robot_api import BaseRobotController, RobotState
 class MyRobotController(BaseRobotController):
     def __init__(self, model, data, robot_name, base_pos=None, base_quat=None, **kwargs):
         super().__init__(model, data, robot_name, base_pos, base_quat)
-        # 在此处初始化特定的运动学或执行器
+        # Initialize IK or specific actuators
 
     def get_robot_state(self) -> RobotState:
-        # 返回当前状态（时间戳、位姿等）
-        pass
+        return RobotState(timestamp=self.data.time)
 
-    # 实现以 'action_' 为前缀的操作
-    def action_navigate_to(self, x, y, theta):
-        # 在此处实现您的自定义逻辑
+    # Implement actions with 'action_' prefix
+    def action_custom_move(self, target_val):
+        # Your logic here
         pass
 ```
 
-#### 第二步：准备资产 (URDF 与 XML)
-- **URDF**：专门用于 **运动学 (IK/FK)** 计算。定义数学上的关节链结构。（可选，仅当控制器需要时定义）
-- **XML**：专门用于 **MuJoCo 物理仿真**。定义几何体、视觉资产 (STL) 和执行器。
+#### Step 2: Register in `run_robots.py`
+Add your robot to the three core registries:
+```python
+ROBOT_CLASSES = { "my_robot": MyRobotController }
+ROBOT_URDFS = { "my_robot": "path/to/model.urdf" } # Optional for IK
+ROBOT_XML_TEMPLATES = { "my_robot": "path/to/model.xml" } # Required for Physics
+```
 
-#### 第三步：在 `run_robots.py` 中注册
-打开 `run_robots.py` 并在全局字典中注册您的新机器人类型：
+---
+
+### 📐 Coordinate Systems & Logic
+
+*   **World Frame**: The global MuJoCo origin `(0,0,0)`. All JSON `pos` values are global.
+*   **Base Frame**: The local frame defined by `base_pos` in the config.
+*   **Auto-Transformation**: The `BaseRobotController` automatically transforms World Frame targets into the robot's Local Frame before calculating Inverse Kinematics. Users do **not** need to manually handle offsets.
+
+---
+
+<a name="中文"></a>
+## 中文
+
+**RoboWeaver** 是一个基于 **MuJoCo** 构建的高性能、轻量级且高度可扩展的仿真框架。与传统的静态环境不同，RoboWeaver 通过动态场景构建引擎，将异构机器人（机械臂、移动底座、无人机）实时“编织”到一个统一的仿真布景中。它专为 **多智能体具身智能 (Multi-Agent Embodied AI)** 研究而设计。
+
+### 🌟 核心特性
+
+- **🕸️ 动态场景编织 (Scene Weaving)**：运行时自动合并各机器人的 XML 模板、模型网格和贴图。
+- **🤖 异构机器人集群**：原生支持在同一物理空间内同时控制机械臂、移动底座、无人机等多种机器人。
+- **🧵 并行异步控制**：每个机器人运行在独立线程，通过标准化异步 API 确保实时控制。
+- **⚙️ 纯配置驱动**：通过 JSON 定义复杂的场景布局和动作序列，无需改动代码或重新编译。
+- **📐 统一世界坐标系**：直接使用全局坐标指挥所有机器人，框架自动处理复杂的基座相对变换。
+
+---
+
+### 🤖 已支持机器人库
+
+| 类型 (`type`) | 型号 | 类别 | 核心功能 |
+| :--- | :--- | :--- | :--- |
+| `piper` | AgileX PiPER (松灵) | 6轴机械臂 | `move_cartesian`, `move_joints`, `gripper` |
+| `stretch` | Hello Robot Stretch 3 | 移动操作机器人 | 大范围操作、移动导航 |
+| `tracer` | AgileX Tracer 2 (松灵) | 差速移动底盘 | 高负载移动运输 |
+| `rbtheron` | Robotnik RB-Theron | 全向移动底盘 | 工业级全向底座 |
+| `skydio` | Skydio X2 | 四旋翼无人机 | 航空巡检、自主飞行 |
+
+---
+
+### 🚀 快速开始
+
+1. **安装依赖**:
+   ```bash
+   pip install mujoco numpy scipy ikpy
+   ```
+2. **运行任务**:
+   ```bash
+   python run_robots.py examples/dual_arm_collab.json
+   ```
+   *使用 `--headless` 可在无界面模式下运行。*
+
+---
+
+### 📝 详细配置指南 (`.json`)
+
+配置文件是“编织”场景的核心蓝图。
+
+#### 1. 场景配置 (`scene`)
+定义环境背景与全局物理。
+*   **`friction`** (数组, 可选): `[滑动, 扭转, 滚动]`。
+    *   *滑动*: 线性运动阻力。建议值 `2.0` 以增强抓取稳定性。
+    *   *扭转*: 防止物体在夹爪中发生扭转旋转。
+*   **`solimp` / `solref`**: MuJoCo 求解器参数。`solref=[0.02, 1]` 可实现临界阻尼，消除碰撞回弹。
+*   **`objects`**: 场景中的动态物体列表。
+    *   `type`: "box", "sphere", "cylinder", "capsule"。
+    *   `movable`: 布尔值。设为 `true` 将启用物理仿真。
+    *   `mass`: 质量。对于小型抓取目标，较低质量（如 `0.01`）可显著提升稳定性。
+
+#### 2. 机器人配置 (`robots`)
+*   **`name`**: 实例的唯一名称。
+*   **`type`**: 匹配注册的机器人类型（如 `piper`）。
+*   **`base_pos` / `base_yaw`**: 机器人在世界坐标系中的初始位姿。
+*   **`sequence`**: 动作序列（如 `{"action": "move_cartesian", "parameters": {...}}`）。
+
+#### 3. 标准动作
+*   **`move_cartesian`**：末端执行器移动到**世界坐标系**下的目标位姿。
+*   **`move_joints`**：移动到目标关节角度（弧度）。
+*   **`home` / `idle`**：返回默认位姿或等待一段时间。
+
+---
+
+### 👩‍💻 开发指南：接入新机器人
+
+RoboWeaver 的模块化设计允许您快速接入任何形态的机器人：
+
+#### 第一步：创建控制器
+在 `robots/` 下创建目录并编写继承自 `BaseRobotController` 的类。
 
 ```python
-from robots.my_robot_control.my_controller import MyRobotController
+from common.robot_api import BaseRobotController, RobotState
 
-ROBOT_CLASSES = {
-    "my_robot": MyRobotController,
-}
+class MyRobotController(BaseRobotController):
+    def __init__(self, model, data, robot_name, base_pos=None, base_quat=None, **kwargs):
+        super().__init__(model, data, robot_name, base_pos, base_quat)
+        # 初始化运动学或执行器
 
-ROBOT_URDFS = {
-    "my_robot": "robots/my_robot_control/assets/my_robot.urdf",
-}
+    def get_robot_state(self) -> RobotState:
+        return RobotState(timestamp=self.data.time)
 
-ROBOT_XML_TEMPLATES = {
-    "my_robot": "robots/my_robot_control/assets/my_robot.xml",
-}
+    # 实现以 'action_' 为前缀的方法
+    def action_custom_move(self, target_val):
+        # 编写您的控制逻辑
+        pass
 ```
 
-#### 第四步：使用
-在您的 JSON 配置文件中使用 `"type": "my_robot"` 即可！
+#### 第二步：在 `run_robots.py` 中注册
+将您的机器人添加到三个核心注册字典中：
+```python
+ROBOT_CLASSES = { "my_robot": MyRobotController }
+ROBOT_URDFS = { "my_robot": "path/to/model.urdf" } # IK 可选
+ROBOT_XML_TEMPLATES = { "my_robot": "path/to/model.xml" } # 物理仿真必填
+```
 
 ---
 
 ### 📐 坐标系说明
 
-- **世界坐标系 (World Frame)**：全局 MuJoCo 坐标系 `(0,0,0)`。JSON 配置中的所有位姿参数均被视为世界坐标。
-- **基座坐标系 (Base Frame)**：机器人的局部坐标系，由配置中的 `base_pos` 定义。
-- **自动转换**：`BaseRobotController` 会在计算逆运动学之前自动将世界坐标目标转换为局部坐标目标，用户**无需**手动计算位置偏移。
+- **世界坐标系 (World Frame)**：全局 MuJoCo 原点 `(0,0,0)`。JSON 中所有 `pos` 均为全局坐标。
+- **基座坐标系 (Base Frame)**：由配置中的 `base_pos` 定义的局部坐标。
+- **自动转换逻辑**：`BaseRobotController` 会在计算逆运动学之前自动将世界坐标目标转换为局部坐标目标，用户**无需**手动计算偏移。
