@@ -21,7 +21,7 @@
   </default>
 
   <asset>
-    <material name="gray_mat" rgba="0.59 0.59 0.59 1"/>
+    <material name="gray_mat" rgba="1 0.8 0 1"/>
     <material name="light_gray_mat" rgba="0.98 0.98 0.98 1"/>
     <material name="light_medium_gray_mat" rgba="0.85 0.85 0.85 1"/>
     <material name="dark_gray_mat" rgba="0.086 0.086 0.086 1"/>

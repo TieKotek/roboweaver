@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<sxc xmlns="http://www-verimag.imag.fr/SpaceEx" version="0.2">
+  <component id="SkydioDrone">
+    <!-- 1. 物理空间状态 -->
+    <param name="x" type="real" local="false" d1="1" d2="1" precision="8" dynamics="any" />
+    <param name="y" type="real" local="false" d1="1" d2="1" precision="8" dynamics="any" />
+    <param name="z" type="real" local="false" d1="1" d2="1" precision="8" dynamics="any" />
+    <param name="yaw" type="real" local="false" d1="1" d2="1" precision="8" dynamics="any" />
+
+    <!-- 2. 运动内部状态 -->
+    <param name="d" type="real" local="false" d1="1" d2="1" precision="8" dynamics="any" />
+    <param name="v" type="real" local="false" d1="1" d2="1" precision="8" dynamics="any" />
+    <param name="t" type="real" local="false" d1="1" d2="1" precision="8" dynamics="any" />
+    
+    <!-- 3. 动作投影参数 (计算得出) -->
+    <param name="dir_x" type="real" local="false" d1="1" d2="1" precision="8" dynamics="any" />
+    <param name="dir_y" type="real" local="false" d1="1" d2="1" precision="8" dynamics="any" />
+    <param name="dir_z" type="real" local="false" d1="1" d2="1" precision="8" dynamics="any" />
+    <param name="dir_yaw" type="real" local="false" d1="1" d2="1" precision="8" dynamics="any" />
+    <param name="target_dist" type="real" local="false" d1="1" d2="1" precision="8" dynamics="any" />
+    <param name="target_speed" type="real" local="false" d1="1" d2="1" precision="8" dynamics="any" />
+    <param name="accel_dist" type="real" local="false" d1="1" d2="1" precision="8" dynamics="any" />
+    
+    <!-- 4. 外部逻辑输入 (本地坐标系下的指令) -->
+    <param name="in_local_x" type="real" local="false" d1="1" d2="1" precision="8" dynamics="any" />
+    <param name="in_local_y" type="real" local="false" d1="1" d2="1" precision="8" dynamics="any" />
+    <param name="in_local_z" type="real" local="false" d1="1" d2="1" precision="8" dynamics="any" />
+    <param name="in_dist" type="real" local="false" d1="1" d2="1" precision="8" dynamics="any" />
+    <param name="in_speed" type="real" local="false" d1="1" d2="1" precision="8" dynamics="any" />
+    
+    <!-- 5. 指令标签 -->
+    <param name="cmd_takeoff" type="label" local="false" />
+    <param name="cmd_land" type="label" local="false" />
+    <param name="cmd_move" type="label" local="false" />
+    <param name="cmd_rotate" type="label" local="false" />
+
+    <!-- ================= 状态定义 ================= -->
+
+    <location id="1" name="Landed">
+      <flow>v' == 0 &amp;&amp; d' == 0 &amp;&amp; t' == 0 &amp;&amp; x' == 0 &amp;&amp; y' == 0 &amp;&amp; z' == 0 &amp;&amp; yaw' == 0</flow>
+    </location>
+
+    <location id="2" name="Hover">
+      <flow>v' == 0 &amp;&amp; d' == 0 &amp;&amp; t' == 0 &amp;&amp; x' == 0 &amp;&amp; y' == 0 &amp;&amp; z' == 0 &amp;&amp; yaw' == 0</flow>
+    </location>
+
+    <location id="3" name="Move_Accel">
+      <invariant>v &lt;= target_speed &amp;&amp; d &lt;= target_dist</invariant>
+      <flow>
+        v' == 2.0 &amp;&amp; d' == v &amp;&amp; t' == 0 &amp;&amp;
+        x' == dir_x * v &amp;&amp; y' == dir_y * v &amp;&amp; z' == dir_z * v &amp;&amp; yaw' == dir_yaw * v
+      </flow>
+    </location>
+
+    <location id="4" name="Move_Cruise">
+      <invariant>d &lt;= target_dist - accel_dist</invariant>
+      <flow>
+        v' == 0 &amp;&amp; d' == v &amp;&amp; t' == 0 &amp;&amp;
+        x' == dir_x * v &amp;&amp; y' == dir_y * v &amp;&amp; z' == dir_z * v &amp;&amp; yaw' == dir_yaw * v
+      </flow>
+    </location>
+
+    <location id="5" name="Move_Decel">
+      <invariant>v &gt;= 0 &amp;&amp; d &lt;= target_dist</invariant>
+      <flow>
+        v' == -2.0 &amp;&amp; d' == v &amp;&amp; t' == 0 &amp;&amp;
+        x' == dir_x * v &amp;&amp; y' == dir_y * v &amp;&amp; z' == dir_z * v &amp;&amp; yaw' == dir_yaw * v
+      </flow>
+    </location>
+
+    <location id="6" name="Settling">
+      <invariant>t &lt;= 1.0</invariant>
+      <flow>v' == 0 &amp;&amp; d' == 0 &amp;&amp; t' == 1 &amp;&amp; x' == 0 &amp;&amp; y' == 0 &amp;&amp; z' == 0 &amp;&amp; yaw' == 0</flow>
+    </location>
+
+    <!-- ================= 跳转逻辑 ================= -->
+
+    <!-- 起飞 -->
+    <transition source="1" target="3">
+      <label>cmd_takeoff</label>
+      <assignment>
+        d = 0 &amp;&amp; v = 0 &amp;&amp; target_dist = in_dist &amp;&amp; target_speed = in_speed &amp;&amp; accel_dist = 0.25 * in_speed * in_speed &amp;&amp;
+        dir_x = 0 &amp;&amp; dir_y = 0 &amp;&amp; dir_z = 1.0 &amp;&amp; dir_yaw = 0
+      </assignment>
+    </transition>
+
+    <!-- 移动: 这里体现了 Yaw 决定航向的逻辑 -->
+    <transition source="2" target="3">
+      <label>cmd_move</label>
+      <assignment>
+        d = 0 &amp;&amp; v = 0 &amp;&amp; target_dist = in_dist &amp;&amp; target_speed = in_speed &amp;&amp; accel_dist = 0.25 * in_speed * in_speed &amp;&amp;
+        dir_x = cos(yaw) * in_local_x - sin(yaw) * in_local_y &amp;&amp;
+        dir_y = sin(yaw) * in_local_x + cos(yaw) * in_local_y &amp;&amp;
+        dir_z = in_local_z &amp;&amp; dir_yaw = 0
+      </assignment>
+    </transition>
+
+    <!-- 旋转 -->
+    <transition source="2" target="3">
+      <label>cmd_rotate</label>
+      <assignment>
+        d = 0 &amp;&amp; v = 0 &amp;&amp; target_dist = in_dist &amp;&amp; target_speed = in_speed &amp;&amp; accel_dist = 0.318 * in_speed * in_speed &amp;&amp;
+        dir_x = 0 &amp;&amp; dir_y = 0 &amp;&amp; dir_z = 0 &amp;&amp; dir_yaw = 1.0
+      </assignment>
+    </transition>
+
+    <!-- 降落 -->
+    <transition source="2" target="5">
+      <label>cmd_land</label>
+      <assignment>d = 0 &amp;&amp; v = in_speed &amp;&amp; target_dist = z &amp;&amp; dir_x = 0 &amp;&amp; dir_y = 0 &amp;&amp; dir_z = -1.0 &amp;&amp; dir_yaw = 0</assignment> 
+    </transition>
+
+    <!-- 状态切换逻辑 -->
+    <transition source="3" target="5">
+      <guard>target_dist &lt; 2.0 * accel_dist &amp;&amp; d &gt;= target_dist / 2.0</guard>
+    </transition>
+    <transition source="3" target="4">
+      <guard>target_dist &gt;= 2.0 * accel_dist &amp;&amp; v &gt;= target_speed</guard>
+    </transition>
+    <transition source="4" target="5">
+      <guard>d &gt;= target_dist - accel_dist</guard>
+    </transition>
+    <transition source="5" target="6">
+      <guard>v &lt;= 0.0</guard>
+      <assignment>v = 0 &amp;&amp; t = 0</assignment>
+    </transition>
+    <transition source="6" target="2">
+      <guard>t &gt;= 1.0 &amp;&amp; z &gt; 0.05</guard>
+    </transition>
+    <transition source="6" target="1">
+      <guard>t &gt;= 1.0 &amp;&amp; z &lt;= 0.05</guard>
+    </transition>
+
+  </component>
+</sxc>
