@@ -1,0 +1,153 @@
+{
+  "description": "Piper arm places a cargo box onto a conveyor, then the conveyor carries it away",
+  "scene": {
+    "friction": [2.0, 0.01, 0.001],
+    "solimp": [0.95, 0.99, 0.001],
+    "solref": [0.01, 1],
+    "objects": [
+      {
+        "name": "piper_base",
+        "type": "box",
+        "size": [0.16, 0.16, 0.1],
+        "pos": [1.1, -0.42, 0.1],
+        "rgba": [0.60, 0.44, 0.28, 1.0],
+        "movable": false
+      },
+      {
+        "name": "source_platform",
+        "type": "box",
+        "size": [0.08, 0.08, 0.1],
+        "pos": [1.10, -0.72, 0.1],
+        "rgba": [0.60, 0.44, 0.28, 1.0],
+        "movable": false
+      },
+      {
+        "name": "cargo_green",
+        "type": "box",
+        "size": [0.02, 0.02, 0.02],
+        "pos": [1.10, -0.72, 0.22],
+        "rgba": [0.18, 0.74, 0.34, 1.0],
+        "movable": true,
+        "mass": 0.02,
+        "role": "cargo",
+        "friction": [1.6, 0.01, 0.001]
+      }
+    ]
+  },
+  "robots": [
+    {
+      "name": "belt_1",
+      "type": "conveyor",
+      "length": 1.2,
+      "base_pos": [0.82, 0.0, 0.0],
+      "sequence": [
+        {
+          "action": "idle",
+          "parameters": {
+            "duration": 25.0
+          },
+          "description": "Hold still while the arm places the box"
+        },
+        {
+          "action": "run",
+          "parameters": {
+            "speed": 20.0,
+            "duration": 4.0
+          },
+          "description": "Carry the placed box down the conveyor"
+        }
+      ]
+    },
+    {
+      "name": "arm_place",
+      "type": "piper",
+      "base_pos": [1.1, -0.42, 0.2],
+      "sequence": [
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [1.05, -0.08, 0.50],
+            "euler": [90, 30, 90],
+            "duration": 3.0
+          },
+          "description": "Move to ready pose"
+        },
+        {
+          "action": "open_gripper",
+          "description": "Prepare gripper for pickup"
+        },
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [1.10, -0.72, 0.32],
+            "euler": [90, 50, -90],
+            "duration": 3.0
+          },
+          "description": "Approach above the source cargo"
+        },
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [1.10, -0.74, 0.22],
+            "euler": [90, 50, -90],
+            "duration": 2.5
+          },
+          "description": "Descend to grasp the source cargo"
+        },
+        {
+          "action": "close_gripper",
+          "description": "Pick up the cargo"
+        },
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [1.04, -0.54, 0.36],
+            "euler": [90, 45, 0],
+            "duration": 2.5
+          },
+          "description": "Lift away from the source platform"
+        },
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [0.64, -0.02, 0.30],
+            "euler": [90, 50, 90],
+            "duration": 4.0
+          },
+          "description": "Move above the conveyor loading point"
+        },
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [0.64, -0.02, 0.166],
+            "euler": [90, 50, 90],
+            "duration": 2.5
+          },
+          "description": "Place the cargo onto the stopped conveyor"
+        },
+        {
+          "action": "open_gripper",
+          "description": "Release the cargo onto the conveyor"
+        },
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [0.86, 0.02, 0.34],
+            "euler": [90, 35, 90],
+            "duration": 2.5
+          },
+          "description": "Lift away from the conveyor"
+        },
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [1.05, -0.05, 0.46],
+            "euler": [90, 25, 90],
+            "duration": 2.5
+          },
+          "description": "Retreat to a safe pose"
+        }
+      ]
+    }
+  ]
+}

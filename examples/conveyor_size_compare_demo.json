@@ -1,0 +1,99 @@
+{
+  "description": "Compare multiple conveyor dimensions in one scene",
+  "scene": {
+    "friction": [2.0, 0.01, 0.001],
+    "solimp": [0.95, 0.99, 0.001],
+    "solref": [0.01, 1],
+    "objects": [
+      {
+        "name": "cargo_small",
+        "type": "box",
+        "size": [0.025, 0.025, 0.025],
+        "pos": [0.72, -0.65, 0.145],
+        "rgba": [0.84, 0.24, 0.20, 1.0],
+        "movable": true,
+        "mass": 0.05,
+        "role": "cargo",
+        "friction": [1.6, 0.01, 0.001]
+      },
+      {
+        "name": "cargo_medium",
+        "type": "box",
+        "size": [0.025, 0.025, 0.025],
+        "pos": [0.52, 0.0, 0.169],
+        "rgba": [0.22, 0.56, 0.88, 1.0],
+        "movable": true,
+        "mass": 0.05,
+        "role": "cargo",
+        "friction": [1.6, 0.01, 0.001]
+      },
+      {
+        "name": "cargo_large",
+        "type": "box",
+        "size": [0.025, 0.025, 0.025],
+        "pos": [0.22, 0.65, 0.205],
+        "rgba": [0.26, 0.74, 0.34, 1.0],
+        "movable": true,
+        "mass": 0.05,
+        "role": "cargo",
+        "friction": [1.6, 0.01, 0.001]
+      }
+    ]
+  },
+  "robots": [
+    {
+      "name": "belt_small",
+      "type": "conveyor",
+      "length": 0.8,
+      "width": 0.24,
+      "height": 0.12,
+      "base_pos": [0.9, -0.65, 0.0],
+      "sequence": [
+        {
+          "action": "run",
+          "parameters": {
+            "speed": 8.0,
+            "duration": 6.0
+          },
+          "description": "Run the short conveyor"
+        }
+      ]
+    },
+    {
+      "name": "belt_medium",
+      "type": "conveyor",
+      "length": 1.2,
+      "width": 0.32,
+      "height": 0.144,
+      "base_pos": [0.9, 0.0, 0.0],
+      "sequence": [
+        {
+          "action": "run",
+          "parameters": {
+            "speed": 8.0,
+            "duration": 6.0
+          },
+          "description": "Run the medium conveyor"
+        }
+      ]
+    },
+    {
+      "name": "belt_large",
+      "type": "conveyor",
+      "length": 1.8,
+      "width": 0.44,
+      "height": 0.18,
+      "base_pos": [0.9, 0.65, 0.0],
+      "sequence": [
+        {
+          "action": "run",
+          "parameters": {
+            "speed": 8.0,
+            "duration": 6.0
+          },
+          "description": "Run the large conveyor"
+        }
+      ]
+    }
+  ]
+}

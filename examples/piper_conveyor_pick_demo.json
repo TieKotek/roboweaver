@@ -1,0 +1,121 @@
+{
+  "description": "Piper arm picks a moving box from the conveyor and places it on a side platform",
+  "scene": {
+    "friction": [2.0, 0.01, 0.001],
+    "solimp": [0.95, 0.99, 0.001],
+    "solref": [0.01, 1],
+    "objects": [
+      {
+        "name": "piper_base",
+        "type": "box",
+        "size": [0.16, 0.16, 0.1],
+        "pos": [1.1, -0.42, 0.1],
+        "rgba": [0.60, 0.44, 0.28, 1.0],
+        "movable": false
+      },
+      {
+        "name": "cargo_red",
+        "type": "box",
+        "size": [0.02, 0.02, 0.02],
+        "pos": [0.72, 0.0, 0.19],
+        "rgba": [0.88, 0.24, 0.20, 1.0],
+        "movable": true,
+        "mass": 0.05,
+        "role": "cargo",
+        "friction": [1.6, 0.01, 0.001]
+      }
+    ]
+  },
+  "robots": [
+    {
+      "name": "belt_1",
+      "type": "conveyor",
+      "length": 2.0,
+      "base_pos": [0.8, 0.0, 0.0],
+      "sequence": [
+        {
+          "action": "run",
+          "parameters": {
+            "speed": 8.0,
+            "duration": 4.0
+          },
+          "description": "Move the cargo into the arm pickup zone"
+        },
+        {
+          "action": "idle",
+          "parameters": {
+            "duration": 8.0
+          },
+          "description": "Hold the cargo still while the arm picks it"
+        }
+      ]
+    },
+    {
+      "name": "arm_pick",
+      "type": "piper",
+      "base_pos": [1.1, -0.42, 0.2],
+      "sequence": [
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [1.05, -0.05, 0.50],
+            "euler": [90, 30, 90],
+            "duration": 3.0
+          },
+          "description": "Move to ready pose"
+        },
+        {
+          "action": "open_gripper",
+          "description": "Prepare gripper for pickup"
+        },
+        {
+          "action": "idle",
+          "parameters": {
+            "duration": 4.2
+          },
+          "description": "Wait for the conveyor to bring the box into range"
+        },
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [0.865, 0.00, 0.30],
+            "euler": [90, 50, 90],
+            "duration": 2.0
+          },
+          "description": "Approach above the pickup position"
+        },
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [0.865, 0.00, 0.158],
+            "euler": [90, 50, 90],
+            "duration": 2.0
+          },
+          "description": "Descend to grasp the box"
+        },
+        {
+          "action": "close_gripper",
+          "description": "Grasp the box"
+        },
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [0.895, 0.02, 0.34],
+            "euler": [90, 50, 90],
+            "duration": 2.0
+          },
+          "description": "Lift the box away from the conveyor"
+        },
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [1.05, 0.02, 0.46],
+            "euler": [90, 25, 90],
+            "duration": 2.5
+          },
+          "description": "Retreat to a safe pose"
+        }
+      ]
+    }
+  ]
+}

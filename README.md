@@ -7,219 +7,222 @@
 <a name="english"></a>
 ## English
 
-**RoboWeaver** is a high-performance, lightweight, and highly extensible simulation framework built on **MuJoCo**. Unlike static environments, RoboWeaver "weaves" together heterogeneous robots (arms, mobile bases, drones) into a unified simulation fabric on-the-fly using a dynamic scene-building engine. It is specifically designed as an evaluation and demonstration platform for **Multi-Agent Embodied AI** research.
+**RoboWeaver** is a MuJoCo-based simulation framework for composing heterogeneous robots into one shared scene at runtime. A JSON scenario describes the scene, robot placements, and action sequences; `run_robots.py` merges robot XML assets, builds a temporary MuJoCo model, and launches each robot controller on its own thread.
 
-### 🌟 Key Characteristics
+### Key Characteristics
 
-- **🕸️ Dynamic Scene Weaving**: Automatically merges individual robot XML templates, meshes, and textures into a single consistent MuJoCo scene at runtime via JSON configuration.
-- **🤖 Heterogeneous Teams**: Native support for simultaneous control of diverse robot types (Manipulators, AMRs, UAVs) in a shared physical environment.
-- **🧵 Parallel Execution**: Each robot operates on its own dedicated thread with a standardized asynchronous API, ensuring non-blocking, real-time control.
-- **⚙️ Configuration-Driven**: Define complex tasks, scene layouts, and robot sequences purely through JSON. No recompilation is required.
-- **📐 Universal Coordinate Frame**: Command all robots using global coordinates; the framework handles base-relative transformations automatically.
+- Dynamic scene weaving: merge multiple robot XML templates into one MuJoCo scene at runtime.
+- Heterogeneous teams: arms, mobile bases, drones, and conveyors can coexist in one world.
+- Parallel execution: each robot runs through a standardized controller API on its own thread.
+- Configuration-driven: tasks, object layouts, and action sequences live in JSON.
+- World-frame commands: controllers handle base-relative transforms internally.
 
----
-
-### 🤖 Supported Robot Gallery
+### Supported Robot Types
 
 | Type (`type`) | Model | Category | Core Capabilities |
 | :--- | :--- | :--- | :--- |
-| `piper` | AgileX PiPER | 6-DOF Arm | `move_cartesian`, `move_joints`, `gripper` |
-| `stretch` | Hello Robot Stretch 3 | Mobile Manipulator | `move_distance`, `rotate`, `move_cartesian` |
-| `tracer` | AgileX Tracer 2 | Differential AMR | `move_distance`, `rotate` |
-| `rbtheron` | Robotnik RB-Theron | Omnidirectional AMR | `move_distance`, `rotate` |
-| `skydio` | Skydio X2 | Quadrotor UAV | `takeoff`, `land`, `move_distance`, `rotate` |
+| `piper` | AgileX PiPER | 6-DOF arm | `move_cartesian`, `move_joints`, `gripper` |
+| `stretch` | Hello Robot Stretch 3 | Mobile manipulator | base and arm control |
+| `tracer` | AgileX Tracer 2 | Differential AMR | base motion |
+| `rbtheron` | Robotnik RB-Theron | Omnidirectional AMR | base motion |
+| `skydio` | Skydio X2 | Quadrotor UAV | `takeoff`, `land`, `move_distance` |
+| `conveyor` | Parametric Conveyor | Conveyor robot | `run`, `idle` |
 
----
+### Quick Start
 
-### 🚀 Quick Start
-
-1. **Install Dependencies**:
+1. Install dependencies:
    ```bash
-   pip install mujoco numpy scipy ikpy
+   pip install -r requirements.txt
    ```
-2. **Launch a Task**:
+2. Run a scenario:
    ```bash
    python run_robots.py examples/dual_arm_collab.json
    ```
-   *Use `--headless` to run without the visual viewer.*
+3. Run headless:
+   ```bash
+   python run_robots.py examples/conveyor_robot_demo.json --headless
+   ```
 
----
+### Configuration Guide
 
-### 📝 Detailed Configuration Guide (`.json`)
+#### `scene`
 
-The configuration file controls the entire "weaving" process.
+- `friction`: default geom friction `[sliding, torsional, rolling]`
+- `solimp` / `solref`: MuJoCo contact solver parameters
+- `timestep`: optional global simulation timestep
+- `objects`: scene objects such as `box`, `sphere`, `cylinder`, `capsule`
 
-#### 1. Scene Configuration (`scene`)
-Defines the environment and global physics.
-*   **`friction`** (Array, optional): `[sliding, torsional, rolling]`. 
-    *   *Sliding*: Resistance to linear movement. Higher values (e.g., `2.0`) prevent object slippage.
-    *   *Torsional*: Prevents objects from spinning within a gripper.
-*   **`solimp` / `solref`**: MuJoCo solver parameters. `solref=[0.02, 1]` ensures critical damping (no bouncing).
-*   **`objects`**: List of dynamic objects.
-    *   `type`: "box", "sphere", "cylinder", "capsule".
-    *   `movable`: Boolean. If `true`, a `freejoint` is added for physics simulation.
-    *   `mass`: Lower mass (e.g., `0.01`) often improves grasping stability for small targets.
+Example movable object:
 
-#### 2. Robot Configuration (`robots`)
-*   **`name`**: Unique identifier for the instance.
-*   **`type`**: Matches the registered type (e.g., `piper`).
-*   **`base_pos` / `base_yaw`**: World placement of the robot base.
-*   **`sequence`**: List of action objects (e.g., `{"action": "move_cartesian", "parameters": {...}}`).
-
-#### 3. Standard Actions
-*   **`move_cartesian`**: Move end-effector to target pose in **World Coordinates**.
-*   **`move_joints`**: Move joints to target angles (radians).
-*   **`home` / `idle`**: Return to safe pose or wait for a duration.
-
----
-
-### 👩‍💻 Developer Guide: Adding New Robots
-
-RoboWeaver is agnostic to robot morphology. Follow these steps to "weave" in a new robot:
-
-#### Step 1: Create the Controller
-Create a directory in `robots/` and a controller inheriting from `BaseRobotController`.
-
-```python
-from common.robot_api import BaseRobotController, RobotState
-
-class MyRobotController(BaseRobotController):
-    def __init__(self, model, data, robot_name, base_pos=None, base_quat=None, **kwargs):
-        super().__init__(model, data, robot_name, base_pos, base_quat)
-        # Initialize IK or specific actuators
-
-    def get_robot_state(self) -> RobotState:
-        return RobotState(timestamp=self.data.time)
-
-    # Implement actions with 'action_' prefix
-    def action_custom_move(self, target_val):
-        # Your logic here
-        pass
+```json
+{
+  "name": "red_box",
+  "type": "box",
+  "size": [0.02, 0.02, 0.02],
+  "pos": [0.72, 0.0, 0.19],
+  "movable": true,
+  "mass": 0.05
+}
 ```
 
-#### Step 2: Register in `run_robots.py`
-Add your robot to the three core registries:
-```python
-ROBOT_CLASSES = { "my_robot": MyRobotController }
-ROBOT_URDFS = { "my_robot": "path/to/model.urdf" } # Optional for IK
-ROBOT_XML_TEMPLATES = { "my_robot": "path/to/model.xml" } # Required for Physics
+#### `robots`
+
+- `name`: unique instance name
+- `type`: registered robot type
+- `base_pos` / `base_yaw`: world placement of the robot base
+- `sequence`: ordered list of action objects
+
+For `type: "conveyor"`, these extra size fields are supported:
+
+- `length`: overall conveyor length in meters, default `1.04`
+- `width`: overall conveyor width in meters, default `0.32`
+- `height`: overall conveyor height in meters, default `0.144`
+
+Example:
+
+```json
+{
+  "name": "belt_1",
+  "type": "conveyor",
+  "length": 1.4,
+  "width": 0.36,
+  "height": 0.16,
+  "base_pos": [0.8, 0.0, 0.0]
+}
 ```
 
----
+### Conveyor Cargo Convention
 
-### 📐 Coordinate Systems & Logic
+If an object should be transported by a conveyor, use the semantic field `role: "cargo"` instead of exposing low-level MuJoCo collision masks in scenario JSON.
 
-*   **World Frame**: The global MuJoCo origin `(0,0,0)`. All JSON `pos` values are global.
-*   **Base Frame**: The local frame defined by `base_pos` in the config.
-*   **Auto-Transformation**: The `BaseRobotController` automatically transforms World Frame targets into the robot's Local Frame before calculating Inverse Kinematics. Users do **not** need to manually handle offsets.
+```json
+{
+  "name": "cargo_red",
+  "type": "box",
+  "movable": true,
+  "role": "cargo"
+}
+```
+
+`role: "cargo"` automatically maps the object into the conveyor-compatible collision group. Conveyor frame geoms still collide normally, while the hidden drive layer only interacts with cargo objects. This keeps arm-conveyor collaboration more stable.
+
+### Developer Notes
+
+To add a new robot:
+
+1. Create a controller under `robots/<robot>_control/` inheriting from `BaseRobotController`.
+2. Register it in `ROBOT_CLASSES`.
+3. Add XML template and optional URDF paths in `run_robots.py`.
+4. Add at least one example JSON under `examples/`.
 
 ---
 
 <a name="中文"></a>
 ## 中文
 
-**RoboWeaver** 是一个基于 **MuJoCo** 构建的高性能、轻量级且高度可扩展的仿真框架。与传统的静态环境不同，RoboWeaver 通过动态场景构建引擎，将异构机器人（机械臂、移动底座、无人机）实时“编织”到一个统一的仿真布景中。它专为 **多智能体具身智能 (Multi-Agent Embodied AI)** 研究而设计。
+**RoboWeaver** 是一个基于 MuJoCo 的多机器人仿真框架。项目通过 JSON 场景配置在运行时动态合并不同机器人的 XML 模型、资产和控制器，把机械臂、移动底盘、无人机以及传送带放进同一个共享场景中。
 
-### 🌟 核心特性
+### 核心特点
 
-- **🕸️ 动态场景编织 (Scene Weaving)**：运行时自动合并各机器人的 XML 模板、模型网格和贴图。
-- **🤖 异构机器人集群**：原生支持在同一物理空间内同时控制机械臂、移动底座、无人机等多种机器人。
-- **🧵 并行异步控制**：每个机器人运行在独立线程，通过标准化异步 API 确保实时控制。
-- **⚙️ 纯配置驱动**：通过 JSON 定义复杂的场景布局和动作序列，无需改动代码或重新编译。
-- **📐 统一世界坐标系**：直接使用全局坐标指挥所有机器人，框架自动处理复杂的基座相对变换。
+- 动态场景拼装：运行时自动合并多个机器人 XML 模板。
+- 异构机器人协作：支持机械臂、移动底盘、无人机、传送带同时存在。
+- 并行执行：每个机器人控制器在独立线程中执行动作序列。
+- 配置驱动：任务、场景布局和动作流程都由 JSON 描述。
+- 世界坐标控制：用户直接使用全局坐标，控制器负责基座变换。
 
----
+### 当前支持的机器人类型
 
-### 🤖 已支持机器人库
-
-| 类型 (`type`) | 型号 | 类别 | 核心功能 |
+| 类型 (`type`) | 模型 | 类别 | 主要能力 |
 | :--- | :--- | :--- | :--- |
-| `piper` | AgileX PiPER (松灵) | 6轴机械臂 | `move_cartesian`, `move_joints`, `gripper` |
-| `stretch` | Hello Robot Stretch 3 | 移动操作机器人 | 大范围操作、移动导航 |
-| `tracer` | AgileX Tracer 2 (松灵) | 差速移动底盘 | 高负载移动运输 |
-| `rbtheron` | Robotnik RB-Theron | 全向移动底盘 | 工业级全向底座 |
-| `skydio` | Skydio X2 | 四旋翼无人机 | 航空巡检、自主飞行 |
+| `piper` | AgileX PiPER | 六轴机械臂 | `move_cartesian`, `move_joints`, `gripper` |
+| `stretch` | Hello Robot Stretch 3 | 移动操作机器人 | 底盘与机械臂控制 |
+| `tracer` | AgileX Tracer 2 | 差速移动底盘 | 底盘运动 |
+| `rbtheron` | Robotnik RB-Theron | 全向移动底盘 | 底盘运动 |
+| `skydio` | Skydio X2 | 四旋翼无人机 | `takeoff`, `land`, `move_distance` |
+| `conveyor` | Parametric Conveyor | 传送带机器人 | `run`, `idle` |
 
----
+### 快速开始
 
-### 🚀 快速开始
-
-1. **安装依赖**:
+1. 安装依赖：
    ```bash
-   pip install mujoco numpy scipy ikpy
+   pip install -r requirements.txt
    ```
-2. **运行任务**:
+2. 运行示例：
    ```bash
    python run_robots.py examples/dual_arm_collab.json
    ```
-   *使用 `--headless` 可在无界面模式下运行。*
+3. 无界面运行：
+   ```bash
+   python run_robots.py examples/conveyor_robot_demo.json --headless
+   ```
 
----
+### 配置说明
 
-### 📝 详细配置指南 (`.json`)
+#### `scene`
 
-配置文件是“编织”场景的核心蓝图。
+- `friction`：默认接触摩擦参数 `[滑动, 扭转, 滚动]`
+- `solimp` / `solref`：MuJoCo 接触求解器参数
+- `timestep`：可选的全局仿真步长
+- `objects`：场景内物体，如 `box`、`sphere`、`cylinder`、`capsule`
 
-#### 1. 场景配置 (`scene`)
-定义环境背景与全局物理。
-*   **`friction`** (数组, 可选): `[滑动, 扭转, 滚动]`。
-    *   *滑动*: 线性运动阻力。建议值 `2.0` 以增强抓取稳定性。
-    *   *扭转*: 防止物体在夹爪中发生扭转旋转。
-*   **`solimp` / `solref`**: MuJoCo 求解器参数。`solref=[0.02, 1]` 可实现临界阻尼，消除碰撞回弹。
-*   **`objects`**: 场景中的动态物体列表。
-    *   `type`: "box", "sphere", "cylinder", "capsule"。
-    *   `movable`: 布尔值。设为 `true` 将启用物理仿真。
-    *   `mass`: 质量。对于小型抓取目标，较低质量（如 `0.01`）可显著提升稳定性。
+示例：
 
-#### 2. 机器人配置 (`robots`)
-*   **`name`**: 实例的唯一名称。
-*   **`type`**: 匹配注册的机器人类型（如 `piper`）。
-*   **`base_pos` / `base_yaw`**: 机器人在世界坐标系中的初始位姿。
-*   **`sequence`**: 动作序列（如 `{"action": "move_cartesian", "parameters": {...}}`）。
-
-#### 3. 标准动作
-*   **`move_cartesian`**：末端执行器移动到**世界坐标系**下的目标位姿。
-*   **`move_joints`**：移动到目标关节角度（弧度）。
-*   **`home` / `idle`**：返回默认位姿或等待一段时间。
-
----
-
-### 👩‍💻 开发指南：接入新机器人
-
-RoboWeaver 的模块化设计允许您快速接入任何形态的机器人：
-
-#### 第一步：创建控制器
-在 `robots/` 下创建目录并编写继承自 `BaseRobotController` 的类。
-
-```python
-from common.robot_api import BaseRobotController, RobotState
-
-class MyRobotController(BaseRobotController):
-    def __init__(self, model, data, robot_name, base_pos=None, base_quat=None, **kwargs):
-        super().__init__(model, data, robot_name, base_pos, base_quat)
-        # 初始化运动学或执行器
-
-    def get_robot_state(self) -> RobotState:
-        return RobotState(timestamp=self.data.time)
-
-    # 实现以 'action_' 为前缀的方法
-    def action_custom_move(self, target_val):
-        # 编写您的控制逻辑
-        pass
+```json
+{
+  "name": "red_box",
+  "type": "box",
+  "size": [0.02, 0.02, 0.02],
+  "pos": [0.72, 0.0, 0.19],
+  "movable": true,
+  "mass": 0.05
+}
 ```
 
-#### 第二步：在 `run_robots.py` 中注册
-将您的机器人添加到三个核心注册字典中：
-```python
-ROBOT_CLASSES = { "my_robot": MyRobotController }
-ROBOT_URDFS = { "my_robot": "path/to/model.urdf" } # IK 可选
-ROBOT_XML_TEMPLATES = { "my_robot": "path/to/model.xml" } # 物理仿真必填
+#### `robots`
+
+- `name`：机器人实例名
+- `type`：机器人类型
+- `base_pos` / `base_yaw`：机器人基座在世界坐标系中的位置和偏航角
+- `sequence`：按顺序执行的动作列表
+
+对 `type: "conveyor"`，额外支持以下尺寸参数：
+
+- `length`：传送带整体长度，单位米，默认 `1.04`
+- `width`：传送带整体宽度，单位米，默认 `0.32`
+- `height`：传送带整体高度，单位米，默认 `0.144`
+
+示例：
+
+```json
+{
+  "name": "belt_1",
+  "type": "conveyor",
+  "length": 1.4,
+  "width": 0.36,
+  "height": 0.16,
+  "base_pos": [0.8, 0.0, 0.0]
+}
 ```
 
----
+### 传送带 Cargo 约定
 
-### 📐 坐标系说明
+如果一个物体需要被传送带运送，请在配置文件中使用语义化字段 `role: "cargo"`，不要直接暴露 `contype` / `conaffinity` 这类底层 MuJoCo 碰撞掩码。
 
-- **世界坐标系 (World Frame)**：全局 MuJoCo 原点 `(0,0,0)`。JSON 中所有 `pos` 均为全局坐标。
-- **基座坐标系 (Base Frame)**：由配置中的 `base_pos` 定义的局部坐标。
-- **自动转换逻辑**：`BaseRobotController` 会在计算逆运动学之前自动将世界坐标目标转换为局部坐标目标，用户**无需**手动计算偏移。
+```json
+{
+  "name": "cargo_red",
+  "type": "box",
+  "movable": true,
+  "role": "cargo"
+}
+```
+
+`role: "cargo"` 会自动映射到与传送带兼容的碰撞分组。传送带机架仍正常参与碰撞，而隐藏驱动层只会与 cargo 交互，这样更适合机械臂与传送带协作抓取、放置和转运场景。
+
+### 开发说明
+
+若要接入新机器人：
+
+1. 在 `robots/<robot>_control/` 下新增控制器，并继承 `BaseRobotController`。
+2. 在 `run_robots.py` 中注册控制器、XML 模板和可选 URDF。
+3. 在 `examples/` 中补一个最小可运行示例。

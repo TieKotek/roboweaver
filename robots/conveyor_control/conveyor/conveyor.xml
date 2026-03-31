@@ -1,0 +1,222 @@
+<mujoco model="conveyor">
+  <compiler angle="radian" autolimits="true"/>
+
+  <default>
+    <geom friction="1.5 0.02 0.002" condim="4"/>
+    <joint damping="0.05" armature="0.001"/>
+    <default class="roller">
+      <joint type="hinge" axis="0 1 0" limited="false"/>
+      <geom type="cylinder" size="0.028 0.095" quat="0.7071068 0.7071068 0 0"
+            rgba="0.12 0.12 0.13 1" friction="3.0 0.02 0.002" contype="0" conaffinity="0"/>
+    </default>
+    <default class="belt_segment">
+      <joint type="slide" axis="1 0 0" limited="false" damping="0.02"/>
+      <geom type="box" size="0.018 0.096 0.006" rgba="0.18 0.19 0.2 1"
+            friction="2.2 0.02 0.002" condim="4" contype="4" conaffinity="2" group="3"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <body name="base_link">
+      <geom name="frame_base" type="box" pos="0 0 0.03" size="0.52 0.16 0.03" rgba="0.92 0.93 0.95 1" contype="1" conaffinity="3"/>
+      <geom name="frame_left" type="box" pos="0 0.13 0.07" size="0.52 0.02 0.04" rgba="0.84 0.86 0.9 1" contype="1" conaffinity="3"/>
+      <geom name="frame_right" type="box" pos="0 -0.13 0.07" size="0.52 0.02 0.04" rgba="0.84 0.86 0.9 1" contype="1" conaffinity="3"/>
+      <geom name="frame_front" type="box" pos="0.51 0 0.055" size="0.015 0.12 0.015" rgba="0.84 0.86 0.9 1" contype="1" conaffinity="3"/>
+      <geom name="frame_rear" type="box" pos="-0.51 0 0.055" size="0.015 0.12 0.015" rgba="0.84 0.86 0.9 1" contype="1" conaffinity="3"/>
+      <geom name="belt_base" type="box" pos="0 0 0.138" size="0.49 0.102 0.006" rgba="0.14 0.15 0.17 1" contype="4" conaffinity="2"/>
+
+      <body name="belt_segment_00" pos="-0.465 0 0.142">
+        <joint name="belt_segment_00_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_01" pos="-0.435 0 0.142">
+        <joint name="belt_segment_01_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_02" pos="-0.405 0 0.142">
+        <joint name="belt_segment_02_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_03" pos="-0.375 0 0.142">
+        <joint name="belt_segment_03_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_04" pos="-0.345 0 0.142">
+        <joint name="belt_segment_04_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_05" pos="-0.315 0 0.142">
+        <joint name="belt_segment_05_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_06" pos="-0.285 0 0.142">
+        <joint name="belt_segment_06_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_07" pos="-0.255 0 0.142">
+        <joint name="belt_segment_07_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_08" pos="-0.225 0 0.142">
+        <joint name="belt_segment_08_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_09" pos="-0.195 0 0.142">
+        <joint name="belt_segment_09_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_10" pos="-0.165 0 0.142">
+        <joint name="belt_segment_10_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_11" pos="-0.135 0 0.142">
+        <joint name="belt_segment_11_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_12" pos="-0.105 0 0.142">
+        <joint name="belt_segment_12_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_13" pos="-0.075 0 0.142">
+        <joint name="belt_segment_13_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_14" pos="-0.045 0 0.142">
+        <joint name="belt_segment_14_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_15" pos="-0.015 0 0.142">
+        <joint name="belt_segment_15_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_16" pos="0.015 0 0.142">
+        <joint name="belt_segment_16_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_17" pos="0.045 0 0.142">
+        <joint name="belt_segment_17_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_18" pos="0.075 0 0.142">
+        <joint name="belt_segment_18_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_19" pos="0.105 0 0.142">
+        <joint name="belt_segment_19_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_20" pos="0.135 0 0.142">
+        <joint name="belt_segment_20_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_21" pos="0.165 0 0.142">
+        <joint name="belt_segment_21_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_22" pos="0.195 0 0.142">
+        <joint name="belt_segment_22_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_23" pos="0.225 0 0.142">
+        <joint name="belt_segment_23_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_24" pos="0.255 0 0.142">
+        <joint name="belt_segment_24_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_25" pos="0.285 0 0.142">
+        <joint name="belt_segment_25_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_26" pos="0.315 0 0.142">
+        <joint name="belt_segment_26_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_27" pos="0.345 0 0.142">
+        <joint name="belt_segment_27_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_28" pos="0.375 0 0.142">
+        <joint name="belt_segment_28_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_29" pos="0.405 0 0.142">
+        <joint name="belt_segment_29_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_30" pos="0.435 0 0.142">
+        <joint name="belt_segment_30_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+      <body name="belt_segment_31" pos="0.465 0 0.142">
+        <joint name="belt_segment_31_joint" class="belt_segment"/>
+        <geom class="belt_segment"/>
+      </body>
+
+      <body name="roller_00" pos="-0.44 0 0.105">
+        <joint name="roller_00_joint" class="roller"/>
+        <geom class="roller"/>
+      </body>
+      <body name="roller_01" pos="-0.36 0 0.105">
+        <joint name="roller_01_joint" class="roller"/>
+        <geom class="roller"/>
+      </body>
+      <body name="roller_02" pos="-0.28 0 0.105">
+        <joint name="roller_02_joint" class="roller"/>
+        <geom class="roller"/>
+      </body>
+      <body name="roller_03" pos="-0.20 0 0.105">
+        <joint name="roller_03_joint" class="roller"/>
+        <geom class="roller"/>
+      </body>
+      <body name="roller_04" pos="-0.12 0 0.105">
+        <joint name="roller_04_joint" class="roller"/>
+        <geom class="roller"/>
+      </body>
+      <body name="roller_05" pos="-0.04 0 0.105">
+        <joint name="roller_05_joint" class="roller"/>
+        <geom class="roller"/>
+      </body>
+      <body name="roller_06" pos="0.04 0 0.105">
+        <joint name="roller_06_joint" class="roller"/>
+        <geom class="roller"/>
+      </body>
+      <body name="roller_07" pos="0.12 0 0.105">
+        <joint name="roller_07_joint" class="roller"/>
+        <geom class="roller"/>
+      </body>
+      <body name="roller_08" pos="0.20 0 0.105">
+        <joint name="roller_08_joint" class="roller"/>
+        <geom class="roller"/>
+      </body>
+      <body name="roller_09" pos="0.28 0 0.105">
+        <joint name="roller_09_joint" class="roller"/>
+        <geom class="roller"/>
+      </body>
+      <body name="roller_10" pos="0.36 0 0.105">
+        <joint name="roller_10_joint" class="roller"/>
+        <geom class="roller"/>
+      </body>
+      <body name="roller_11" pos="0.44 0 0.105">
+        <joint name="roller_11_joint" class="roller"/>
+        <geom class="roller"/>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <velocity name="roller_00_drive" joint="roller_00_joint" kv="4" ctrlrange="-12 12"/>
+    <velocity name="roller_01_drive" joint="roller_01_joint" kv="4" ctrlrange="-12 12"/>
+    <velocity name="roller_02_drive" joint="roller_02_joint" kv="4" ctrlrange="-12 12"/>
+    <velocity name="roller_03_drive" joint="roller_03_joint" kv="4" ctrlrange="-12 12"/>
+    <velocity name="roller_04_drive" joint="roller_04_joint" kv="4" ctrlrange="-12 12"/>
+    <velocity name="roller_05_drive" joint="roller_05_joint" kv="4" ctrlrange="-12 12"/>
+    <velocity name="roller_06_drive" joint="roller_06_joint" kv="4" ctrlrange="-12 12"/>
+    <velocity name="roller_07_drive" joint="roller_07_joint" kv="4" ctrlrange="-12 12"/>
+    <velocity name="roller_08_drive" joint="roller_08_joint" kv="4" ctrlrange="-12 12"/>
+    <velocity name="roller_09_drive" joint="roller_09_joint" kv="4" ctrlrange="-12 12"/>
+    <velocity name="roller_10_drive" joint="roller_10_joint" kv="4" ctrlrange="-12 12"/>
+    <velocity name="roller_11_drive" joint="roller_11_joint" kv="4" ctrlrange="-12 12"/>
+  </actuator>
+</mujoco>

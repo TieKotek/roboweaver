@@ -38,6 +38,7 @@ temp_scene_*.xml
 
 # Project Specific
 GEMINI.md
+AGENTS.md
 .geminiignore
 .DS_Store
 Thumbs.db

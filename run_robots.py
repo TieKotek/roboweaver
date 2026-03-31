@@ -15,6 +15,7 @@ import os
 import xml.etree.ElementTree as ET
 import uuid
 import numpy as np
+import math
 from pathlib import Path
 from typing import Dict, Any, List, Set
 import numpy as np
@@ -26,6 +27,7 @@ from robots.rbtheron_control.rbtheron_controller import RbtheronController
 from robots.tracer_control.tracer_controller import TracerController
 from robots.stretch_control.stretch_controller import StretchController
 from robots.skydio_control.skydio_controller import SkydioController
+from robots.conveyor_control.conveyor_controller import ConveyorController
 
 ROBOT_CLASSES = {
     "piper": PiperController,
@@ -33,6 +35,7 @@ ROBOT_CLASSES = {
     "tracer": TracerController,
     "stretch": StretchController,
     "skydio": SkydioController,
+    "conveyor": ConveyorController,
 }
 
 # Optional: Only when controller needs URDF files
@@ -46,7 +49,16 @@ ROBOT_XML_TEMPLATES = {
     "tracer": "robots/tracer_control/agilex_tracer2/tracer2.xml",
     "stretch": "robots/stretch_control/hello_robot_stretch_3/stretch.xml",
     "skydio": "robots/skydio_control/skydio_x2/x2.xml",
+    "conveyor": "robots/conveyor_control/conveyor/conveyor.xml",
 }
+
+OBJECT_ROLE_COLLISION = {
+    "cargo": {"contype": 2, "conaffinity": 5},
+}
+
+DEFAULT_CONVEYOR_LENGTH = 1.04
+DEFAULT_CONVEYOR_WIDTH = 0.32
+DEFAULT_CONVEYOR_HEIGHT = 0.144
 
 # --- Helper Functions ---
 
@@ -66,6 +78,7 @@ class SceneBuilder:
         self.temp_files = []
         self.included_assets: Set[str] = set() # Track asset names to avoid dups
         self.included_defaults: Set[str] = set() # Track default classes
+        self.included_default_base_tags: Set[str] = set() # Track base default children like geom/joint
 
     def build(self, config: Dict[str, Any]) -> str:
         run_id = str(uuid.uuid4())[:8]
@@ -144,8 +157,12 @@ class SceneBuilder:
                 print(f"Warning: Unknown robot type '{r_type}', skipping.")
                 continue
 
+            robot_xml_path = ROBOT_XML_TEMPLATES[r_type]
+            if r_type == "conveyor":
+                robot_xml_path = self._build_conveyor_xml(robot)
+
             self._merge_robot_xml(
-                ROBOT_XML_TEMPLATES[r_type], 
+                robot_xml_path,
                 r_name, 
                 base_pos,
                 base_quat,
@@ -228,9 +245,10 @@ class SceneBuilder:
                     self.included_defaults.add(cls_name)
                     target_default.append(self._copy_elem(item))
                 elif not cls_name: 
-                    # Base default without class, maybe merge children? 
-                    # For now, append if simple
-                    target_default.append(self._copy_elem(item))
+                    tag_key = item.tag
+                    if tag_key not in self.included_default_base_tags:
+                        self.included_default_base_tags.add(tag_key)
+                        target_default.append(self._copy_elem(item))
 
         # 3. Worldbody
         target_wb = scene_root.find("worldbody")
@@ -302,6 +320,88 @@ class SceneBuilder:
         import copy
         return copy.deepcopy(elem)
 
+    def _build_conveyor_xml(self, robot_config: Dict[str, Any]) -> str:
+        """Create a conveyor XML variant with configurable overall dimensions."""
+        xml_path = ROBOT_XML_TEMPLATES["conveyor"]
+        tree = ET.parse(xml_path)
+        root = tree.getroot()
+
+        length = float(robot_config.get("length", DEFAULT_CONVEYOR_LENGTH))
+        width = float(robot_config.get("width", DEFAULT_CONVEYOR_WIDTH))
+        height = float(robot_config.get("height", DEFAULT_CONVEYOR_HEIGHT))
+        length = max(length, 0.40)
+        width = max(width, 0.12)
+        height = max(height, 0.06)
+
+        frame_half = length / 2.0
+        belt_half = max(frame_half - 0.03, 0.12)
+        belt_travel = max(length - 0.08, 0.12)
+        width_scale = width / DEFAULT_CONVEYOR_WIDTH
+        height_scale = height / DEFAULT_CONVEYOR_HEIGHT
+
+        worldbody = root.find("worldbody")
+        base_link = worldbody.find("body")
+
+        geoms_by_name = {geom.get("name"): geom for geom in base_link.findall("geom")}
+        geoms_by_name["frame_base"].set("pos", f"0 0 {0.03 * height_scale:.6f}")
+        geoms_by_name["frame_base"].set("size", f"{frame_half:.6f} {0.16 * width_scale:.6f} {0.03 * height_scale:.6f}")
+        geoms_by_name["frame_left"].set("pos", f"0 {0.13 * width_scale:.6f} {0.07 * height_scale:.6f}")
+        geoms_by_name["frame_left"].set("size", f"{frame_half:.6f} {0.02 * width_scale:.6f} {0.04 * height_scale:.6f}")
+        geoms_by_name["frame_right"].set("pos", f"0 {-0.13 * width_scale:.6f} {0.07 * height_scale:.6f}")
+        geoms_by_name["frame_right"].set("size", f"{frame_half:.6f} {0.02 * width_scale:.6f} {0.04 * height_scale:.6f}")
+        geoms_by_name["frame_front"].set("pos", f"{frame_half - 0.01:.6f} 0 {0.055 * height_scale:.6f}")
+        geoms_by_name["frame_front"].set("size", f"0.015 {0.12 * width_scale:.6f} {0.015 * height_scale:.6f}")
+        geoms_by_name["frame_rear"].set("pos", f"{-(frame_half - 0.01):.6f} 0 {0.055 * height_scale:.6f}")
+        geoms_by_name["frame_rear"].set("size", f"0.015 {0.12 * width_scale:.6f} {0.015 * height_scale:.6f}")
+        geoms_by_name["belt_base"].set("pos", f"0 0 {0.138 * height_scale:.6f}")
+        geoms_by_name["belt_base"].set("size", f"{belt_half:.6f} {0.102 * width_scale:.6f} {0.006 * height_scale:.6f}")
+
+        roller_default = root.find("./default/default[@class='roller']/geom")
+        belt_segment_default = root.find("./default/default[@class='belt_segment']/geom")
+        roller_default.set("size", f"{0.028 * height_scale:.6f} {0.095 * width_scale:.6f}")
+        segment_count = max(8, int(round(belt_travel / 0.03)))
+        segment_spacing = belt_travel / segment_count
+        segment_half_x = max(segment_spacing * 0.6, 0.01)
+        belt_segment_default.set("size", f"{segment_half_x:.6f} {0.096 * width_scale:.6f} {0.006 * height_scale:.6f}")
+
+        for child in list(base_link):
+            name = child.get("name", "")
+            if name.startswith("belt_segment_") or name.startswith("roller_"):
+                base_link.remove(child)
+
+        actuator = root.find("actuator")
+        for child in list(actuator):
+            if child.get("name", "").startswith("roller_"):
+                actuator.remove(child)
+
+        first_segment_x = -belt_travel / 2.0 + segment_spacing / 2.0
+        for idx in range(segment_count):
+            x = first_segment_x + idx * segment_spacing
+            body = ET.SubElement(base_link, "body", name=f"belt_segment_{idx:02d}", pos=f"{x:.6f} 0 {0.142 * height_scale:.6f}")
+            ET.SubElement(body, "joint", name=f"belt_segment_{idx:02d}_joint", **{"class": "belt_segment"})
+            ET.SubElement(body, "geom", **{"class": "belt_segment"})
+
+        roller_margin = 0.08
+        roller_span = max(length - 2 * roller_margin, 0.0)
+        roller_count = max(4, int(math.floor(roller_span / 0.08)) + 1)
+        if roller_count == 1:
+            roller_positions = [0.0]
+        else:
+            start = -roller_span / 2.0
+            roller_positions = [start + i * (roller_span / (roller_count - 1)) for i in range(roller_count)]
+
+        for idx, x in enumerate(roller_positions):
+            body = ET.SubElement(base_link, "body", name=f"roller_{idx:02d}", pos=f"{x:.6f} 0 {0.105 * height_scale:.6f}")
+            ET.SubElement(body, "joint", name=f"roller_{idx:02d}_joint", **{"class": "roller"})
+            ET.SubElement(body, "geom", **{"class": "roller"})
+            ET.SubElement(actuator, "velocity", name=f"roller_{idx:02d}_drive", joint=f"roller_{idx:02d}_joint", kv="4", ctrlrange="-12 12")
+
+        run_id = str(uuid.uuid4())[:8]
+        temp_path = f"temp_conveyor_{run_id}.xml"
+        tree.write(temp_path)
+        self.temp_files.append(temp_path)
+        return temp_path
+
     def _add_object(self, worldbody, obj_config):
         name = obj_config.get("name", f"obj_{uuid.uuid4().hex[:6]}")
         body = ET.SubElement(worldbody, "body", name=name)
@@ -318,6 +418,13 @@ class SceneBuilder:
         geom.set("size", " ".join(map(str, obj_config.get("size", [0.05]*3))))
         geom.set("rgba", " ".join(map(str, obj_config.get("rgba", [1,0,0,1]))))
         if "mass" in obj_config: geom.set("mass", str(obj_config["mass"]))
+
+        role = obj_config.get("role")
+        role_collision = OBJECT_ROLE_COLLISION.get(role, {})
+        contype = obj_config.get("contype", role_collision.get("contype"))
+        conaffinity = obj_config.get("conaffinity", role_collision.get("conaffinity"))
+        if contype is not None: geom.set("contype", str(contype))
+        if conaffinity is not None: geom.set("conaffinity", str(conaffinity))
         
         # Friction
         if "friction" in obj_config:
@@ -426,13 +533,17 @@ def main():
                     log_dir=log_dir
                 )
             else:
+                extra_kwargs = {}
+                if r_type == "conveyor" and "length" in r_conf:
+                    extra_kwargs["length"] = r_conf["length"]
                 ctrl = ControllerClass(
                     model,
                     data,
                     robot_name=r_name,
                     base_pos=base_pos,
                     base_quat=base_quat,
-                    log_dir=log_dir
+                    log_dir=log_dir,
+                    **extra_kwargs
                 )
             
             t = RobotThread(ctrl, r_conf.get("sequence", []))

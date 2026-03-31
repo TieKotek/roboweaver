@@ -1,0 +1,56 @@
+{
+  "description": "Powered conveyor robot demo",
+  "scene": {
+    "friction": [2.0, 0.01, 0.001],
+    "solimp": [0.95, 0.99, 0.001],
+    "solref": [0.01, 1],
+    "objects": [
+      {
+        "name": "red_box",
+        "type": "box",
+        "size": [0.035, 0.035, 0.035],
+        "pos": [0.72, 0.0, 0.19],
+        "rgba": [0.88, 0.25, 0.22, 1.0],
+        "movable": true,
+        "mass": 0.05,
+        "role": "cargo",
+        "friction": [1.6, 0.01, 0.001]
+      }
+    ]
+  },
+  "robots": [
+    {
+      "name": "belt_1",
+      "type": "conveyor",
+      "length": 1.4,
+      "width": 0.36,
+      "height": 0.16,
+      "base_pos": [0.8, 0.0, 0.0],
+      "sequence": [
+        {
+          "action": "run",
+          "parameters": {
+            "speed": 8.0,
+            "duration": 6.0
+          },
+          "description": "Run the conveyor"
+        },
+        {
+          "action": "idle",
+          "parameters": {
+            "duration": 1.0
+          },
+          "description": "Stop the conveyor"
+        },
+        {
+          "action": "run",
+          "parameters": {
+            "speed": 8.0,
+            "duration": 6.0
+          },
+          "description": "Run the conveyor"
+        }
+      ]
+    }
+  ]
+}
