@@ -1,0 +1,86 @@
+{
+  "description": "WLKATA Mirobot basic motion demo",
+  "scene": {
+    "objects": [
+        {
+        "name": "cargo",
+        "type": "box",
+        "size": [0.04, 0.03, 0.02],
+        "pos": [0.0, 0.0, 0.125],
+        "rgba": [0.22, 0.56, 0.88, 1.0],
+        "movable": true,
+        "mass": 0.05,
+        "role": "cargo",
+        "friction": [1.6, 0.01, 0.001]
+      }
+    ]
+  },
+  "robots": [
+    {
+      "name": "belt",
+      "type": "conveyor",
+      "length": 2.0,
+      "width": 0.2,
+      "height": 0.1,
+      "base_pos": [0.25, 0.0, 0.0],
+      "sequence": [
+        {
+          "action": "run",
+          "parameters": {
+            "speed": 15.0,
+            "duration": 30.0
+          },
+          "description": "Run the conveyor"
+        }
+      ]
+    },
+    {
+      "name": "miro1",
+      "type": "mirobot",
+      "base_pos": [0.5, 0.25, 0.0],
+      "sequence": [
+        {
+          "action": "move_linear",
+          "description": "Reach forward in world coordinates",
+          "parameters": {
+            "pose": [0.5, 0.05, 0.25],
+            "euler": [0, 0, 0],
+            "duration": 3.0
+          }
+        }
+      ]
+    },
+    {
+      "name": "miro2",
+      "type": "mirobot",
+      "base_pos": [0.5, -0.25, 0.0],
+      "sequence": [
+        {
+          "action": "move_linear",
+          "description": "Reach forward in world coordinates",
+          "parameters": {
+            "pose": [0.5, -0.05, 0.25],
+            "euler": [0, 0, 0],
+            "duration": 3.0
+          }
+        }
+      ]
+    },
+    {
+      "name": "miro3",
+      "type": "mirobot",
+      "base_pos": [0.0, 0.25, 0.0],
+      "sequence": [
+        {
+          "action": "move_linear",
+          "description": "Reach forward in world coordinates",
+          "parameters": {
+            "pose": [0.0, 0.05, 0.25],
+            "euler": [0, 0, 0],
+            "duration": 3.0
+          }
+        }
+      ]
+    }
+  ]
+}
