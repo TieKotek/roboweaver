@@ -335,7 +335,7 @@ class SceneBuilder:
 
         frame_half = length / 2.0
         belt_half = max(frame_half - 0.03, 0.12)
-        belt_travel = max(length - 0.08, 0.12)
+        belt_surface_length = belt_half * 2.0
         width_scale = width / DEFAULT_CONVEYOR_WIDTH
         height_scale = height / DEFAULT_CONVEYOR_HEIGHT
 
@@ -359,8 +359,8 @@ class SceneBuilder:
         roller_default = root.find("./default/default[@class='roller']/geom")
         belt_segment_default = root.find("./default/default[@class='belt_segment']/geom")
         roller_default.set("size", f"{0.028 * height_scale:.6f} {0.095 * width_scale:.6f}")
-        segment_count = max(8, int(round(belt_travel / 0.03)))
-        segment_spacing = belt_travel / segment_count
+        segment_count = max(8, int(round(belt_surface_length / 0.03)))
+        segment_spacing = belt_surface_length / segment_count
         segment_half_x = max(segment_spacing * 0.6, 0.01)
         belt_segment_default.set("size", f"{segment_half_x:.6f} {0.096 * width_scale:.6f} {0.006 * height_scale:.6f}")
 
@@ -374,7 +374,7 @@ class SceneBuilder:
             if child.get("name", "").startswith("roller_"):
                 actuator.remove(child)
 
-        first_segment_x = -belt_travel / 2.0 + segment_spacing / 2.0
+        first_segment_x = -belt_half + segment_spacing / 2.0
         for idx in range(segment_count):
             x = first_segment_x + idx * segment_spacing
             body = ET.SubElement(base_link, "body", name=f"belt_segment_{idx:02d}", pos=f"{x:.6f} 0 {0.142 * height_scale:.6f}")

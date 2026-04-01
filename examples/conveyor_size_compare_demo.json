@@ -52,8 +52,8 @@
         {
           "action": "run",
           "parameters": {
-            "speed": 8.0,
-            "duration": 6.0
+            "speed": 15.0,
+            "duration": 30.0
           },
           "description": "Run the short conveyor"
         }
@@ -70,8 +70,8 @@
         {
           "action": "run",
           "parameters": {
-            "speed": 8.0,
-            "duration": 6.0
+            "speed": 15.0,
+            "duration": 30.0
           },
           "description": "Run the medium conveyor"
         }
@@ -88,8 +88,8 @@
         {
           "action": "run",
           "parameters": {
-            "speed": 8.0,
-            "duration": 6.0
+            "speed": 15.0,
+            "duration": 30.0
           },
           "description": "Run the large conveyor"
         }
