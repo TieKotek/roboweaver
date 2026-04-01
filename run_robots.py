@@ -329,6 +329,7 @@ class SceneBuilder:
         length = float(robot_config.get("length", DEFAULT_CONVEYOR_LENGTH))
         width = float(robot_config.get("width", DEFAULT_CONVEYOR_WIDTH))
         height = float(robot_config.get("height", DEFAULT_CONVEYOR_HEIGHT))
+        show_driver_layer = bool(robot_config.get("show_driver_layer", False))
         length = max(length, 0.40)
         width = max(width, 0.12)
         height = max(height, 0.06)
@@ -355,6 +356,10 @@ class SceneBuilder:
         geoms_by_name["frame_rear"].set("size", f"0.015 {0.12 * width_scale:.6f} {0.015 * height_scale:.6f}")
         geoms_by_name["belt_base"].set("pos", f"0 0 {0.138 * height_scale:.6f}")
         geoms_by_name["belt_base"].set("size", f"{belt_half:.6f} {0.102 * width_scale:.6f} {0.006 * height_scale:.6f}")
+        if show_driver_layer:
+            geoms_by_name["belt_base"].set("rgba", "0.20 0.22 0.25 0.35")
+        else:
+            geoms_by_name["belt_base"].set("rgba", "0.14 0.15 0.17 1")
 
         roller_default = root.find("./default/default[@class='roller']/geom")
         belt_segment_default = root.find("./default/default[@class='belt_segment']/geom")
@@ -363,6 +368,12 @@ class SceneBuilder:
         segment_spacing = belt_surface_length / segment_count
         segment_half_x = max(segment_spacing * 0.6, 0.01)
         belt_segment_default.set("size", f"{segment_half_x:.6f} {0.096 * width_scale:.6f} {0.006 * height_scale:.6f}")
+        if show_driver_layer:
+            belt_segment_default.set("rgba", "0.92 0.46 0.14 0.95")
+            belt_segment_default.set("group", "0")
+        else:
+            belt_segment_default.set("rgba", "0.18 0.19 0.2 1")
+            belt_segment_default.set("group", "3")
 
         for child in list(base_link):
             name = child.get("name", "")
