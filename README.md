@@ -7,14 +7,14 @@
 <a name="english"></a>
 ## English
 
-**RoboWeaver** is a MuJoCo-based simulation framework for composing heterogeneous robots into one shared scene at runtime. A JSON scenario describes the scene, robot placements, and action sequences; `run_robots.py` merges robot XML assets, builds a temporary MuJoCo model, and launches each robot controller on its own thread.
+**RoboWeaver** is a MuJoCo-based framework for composing heterogeneous robots into one shared scene at runtime. A JSON scenario defines scene objects, robot placements, and action sequences; `run_robots.py` merges robot XML assets, builds a temporary MuJoCo model, and launches each robot controller on its own thread.
 
 ### Key Characteristics
 
 - Dynamic scene weaving: merge multiple robot XML templates into one MuJoCo scene at runtime.
 - Heterogeneous teams: arms, mobile bases, drones, and conveyors can coexist in one world.
-- Parallel execution: each robot runs through a standardized controller API on its own thread.
-- Configuration-driven: tasks, object layouts, and action sequences live in JSON.
+- Parallel execution: each robot controller runs on its own thread through a shared API.
+- Configuration-driven: scene layouts and action sequences live in JSON.
 - World-frame commands: controllers handle base-relative transforms internally.
 
 ### Supported Robot Types
@@ -50,7 +50,7 @@
 - `friction`: default geom friction `[sliding, torsional, rolling]`
 - `solimp` / `solref`: MuJoCo contact solver parameters
 - `timestep`: optional global simulation timestep
-- `objects`: scene objects such as `box`, `sphere`, `cylinder`, `capsule`
+- `objects`: scene objects such as `box`, `sphere`, `cylinder`, and `capsule`
 
 Example movable object:
 
@@ -91,20 +91,15 @@ Example:
 }
 ```
 
-### Conveyor Cargo Convention
+### Conveyor Behavior
 
-If an object should be transported by a conveyor, use the semantic field `role: "cargo"` instead of exposing low-level MuJoCo collision masks in scenario JSON.
+Conveyors now use normal scene-object collision behavior. Any movable object placed on the visible belt surface will be carried by the conveyor without any extra role flag or collision-group setting.
 
-```json
-{
-  "name": "cargo_red",
-  "type": "box",
-  "movable": true,
-  "role": "cargo"
-}
-```
+- The visible dark belt defines the supported transport region.
+- A hidden driver layer is aligned with that region and provides the motion.
+- Objects move while they remain on the belt and fall only after they pass beyond its end.
 
-`role: "cargo"` automatically maps the object into the conveyor-compatible collision group. Conveyor frame geoms still collide normally, while the hidden drive layer only interacts with cargo objects. This keeps arm-conveyor collaboration more stable.
+This keeps scenario JSON simple: ordinary boxes, cylinders, or other movable objects can be placed on the belt directly.
 
 ### Developer Notes
 
@@ -120,15 +115,15 @@ To add a new robot:
 <a name="中文"></a>
 ## 中文
 
-**RoboWeaver** 是一个基于 MuJoCo 的多机器人仿真框架。项目通过 JSON 场景配置在运行时动态合并不同机器人的 XML 模型、资产和控制器，把机械臂、移动底盘、无人机以及传送带放进同一个共享场景中。
+**RoboWeaver** 是一个基于 MuJoCo 的异构多机器人仿真框架。项目通过 JSON 场景配置，在运行时动态合并不同机器人的 XML 模型与资源，并由 `run_robots.py` 构建临时场景、加载控制器、并行执行动作序列。
 
 ### 核心特点
 
-- 动态场景拼装：运行时自动合并多个机器人 XML 模板。
-- 异构机器人协作：支持机械臂、移动底盘、无人机、传送带同时存在。
-- 并行执行：每个机器人控制器在独立线程中执行动作序列。
-- 配置驱动：任务、场景布局和动作流程都由 JSON 描述。
-- 世界坐标控制：用户直接使用全局坐标，控制器负责基座变换。
+- 动态场景拼装：运行时把多个机器人 XML 模板合并到同一个 MuJoCo 场景中。
+- 异构机器人协作：机械臂、移动底盘、无人机、传送带可以同时存在。
+- 并行执行：每个机器人控制器在独立线程中运行，共享统一控制接口。
+- 配置驱动：场景布局、任务流程、动作序列全部由 JSON 描述。
+- 世界坐标控制：用户直接写全局坐标，控制器内部处理基座变换。
 
 ### 当前支持的机器人类型
 
@@ -139,7 +134,7 @@ To add a new robot:
 | `tracer` | AgileX Tracer 2 | 差速移动底盘 | 底盘运动 |
 | `rbtheron` | Robotnik RB-Theron | 全向移动底盘 | 底盘运动 |
 | `skydio` | Skydio X2 | 四旋翼无人机 | `takeoff`, `land`, `move_distance` |
-| `conveyor` | Parametric Conveyor | 传送带机器人 | `run`, `idle` |
+| `conveyor` | 参数化传送带 | 传送带机器人 | `run`, `idle` |
 
 ### 快速开始
 
@@ -160,12 +155,12 @@ To add a new robot:
 
 #### `scene`
 
-- `friction`：默认接触摩擦参数 `[滑动, 扭转, 滚动]`
-- `solimp` / `solref`：MuJoCo 接触求解器参数
+- `friction`：默认几何体摩擦参数 `[滑动, 扭转, 滚动]`
+- `solimp` / `solref`：MuJoCo 接触求解参数
 - `timestep`：可选的全局仿真步长
-- `objects`：场景内物体，如 `box`、`sphere`、`cylinder`、`capsule`
+- `objects`：场景物体，例如 `box`、`sphere`、`cylinder`、`capsule`
 
-示例：
+可移动物体示例：
 
 ```json
 {
@@ -185,7 +180,7 @@ To add a new robot:
 - `base_pos` / `base_yaw`：机器人基座在世界坐标系中的位置和偏航角
 - `sequence`：按顺序执行的动作列表
 
-对 `type: "conveyor"`，额外支持以下尺寸参数：
+对于 `type: "conveyor"`，额外支持以下尺寸参数：
 
 - `length`：传送带整体长度，单位米，默认 `1.04`
 - `width`：传送带整体宽度，单位米，默认 `0.32`
@@ -204,25 +199,20 @@ To add a new robot:
 }
 ```
 
-### 传送带 Cargo 约定
+### 传送带行为
 
-如果一个物体需要被传送带运送，请在配置文件中使用语义化字段 `role: "cargo"`，不要直接暴露 `contype` / `conaffinity` 这类底层 MuJoCo 碰撞掩码。
+传送带现在使用普通场景物体碰撞语义，不再需要 `role: "cargo"` 之类的额外配置。只要物体是可移动的，并且真正放在可见皮带表面上，它就会被传送带带走。
 
-```json
-{
-  "name": "cargo_red",
-  "type": "box",
-  "movable": true,
-  "role": "cargo"
-}
-```
+- 深色皮带表面定义了有效输送区域。
+- 隐藏驱动层与这段区域对齐，负责提供运动。
+- 物体只要还在皮带范围内就会持续运动，超出末端后才会掉落。
 
-`role: "cargo"` 会自动映射到与传送带兼容的碰撞分组。传送带机架仍正常参与碰撞，而隐藏驱动层只会与 cargo 交互，这样更适合机械臂与传送带协作抓取、放置和转运场景。
+这样配置文件会更简单：普通方块、圆柱或其他可移动物体都可以直接放到皮带上，不需要专门的角色字段。
 
 ### 开发说明
 
-若要接入新机器人：
+如果要新增一种机器人：
 
 1. 在 `robots/<robot>_control/` 下新增控制器，并继承 `BaseRobotController`。
 2. 在 `run_robots.py` 中注册控制器、XML 模板和可选 URDF。
-3. 在 `examples/` 中补一个最小可运行示例。
+3. 在 `examples/` 下补一个最小可运行示例。

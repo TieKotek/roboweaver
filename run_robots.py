@@ -56,13 +56,11 @@ ROBOT_XML_TEMPLATES = {
     "mirobot": "robots/mirobot_control/mirobot.xml",
 }
 
-OBJECT_ROLE_COLLISION = {
-    "cargo": {"contype": 2, "conaffinity": 5},
-}
-
 DEFAULT_CONVEYOR_LENGTH = 1.04
 DEFAULT_CONVEYOR_WIDTH = 0.32
 DEFAULT_CONVEYOR_HEIGHT = 0.144
+DEFAULT_MOVABLE_OBJECT_CONTYPE = 2
+DEFAULT_MOVABLE_OBJECT_CONAFFINITY = 7
 
 # --- Helper Functions ---
 
@@ -434,10 +432,13 @@ class SceneBuilder:
         geom.set("rgba", " ".join(map(str, obj_config.get("rgba", [1,0,0,1]))))
         if "mass" in obj_config: geom.set("mass", str(obj_config["mass"]))
 
-        role = obj_config.get("role")
-        role_collision = OBJECT_ROLE_COLLISION.get(role, {})
-        contype = obj_config.get("contype", role_collision.get("contype"))
-        conaffinity = obj_config.get("conaffinity", role_collision.get("conaffinity"))
+        contype = obj_config.get("contype")
+        conaffinity = obj_config.get("conaffinity")
+        if obj_config.get("movable", False):
+            if contype is None:
+                contype = DEFAULT_MOVABLE_OBJECT_CONTYPE
+            if conaffinity is None:
+                conaffinity = DEFAULT_MOVABLE_OBJECT_CONAFFINITY
         if contype is not None: geom.set("contype", str(contype))
         if conaffinity is not None: geom.set("conaffinity", str(conaffinity))
         
