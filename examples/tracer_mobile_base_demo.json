@@ -18,13 +18,13 @@
         {"action": "idle", "parameters": { "duration": 1.0 } },
         { "action": "move_straight", "parameters": { "distance": 1.0, "direction": "forward" } },
         { "action": "idle", "parameters": { "duration": 1.0 } },
-        { "action": "turn", "parameters": { "target_yaw": 90.0, "direction": "ccw" } },
+        { "action": "turn", "parameters": { "target_yaw": 90.0, "direction": "ccw", "speed": 20.0 } },
         { "action": "idle", "parameters": { "duration": 1.0 } },
-        { "action": "move_straight", "parameters": { "distance": 1.0, "direction": "forward" } },
+        { "action": "move_straight", "parameters": { "distance": 1.0, "direction": "forward", "speed": 0.3 } },
         { "action": "idle", "parameters": { "duration": 1.0 } },
-        { "action": "turn", "parameters": { "target_yaw": 0.0, "direction": "cw" } },
+        { "action": "turn", "parameters": { "target_yaw": 0.0, "direction": "cw", "speed": 20.0 } },
         { "action": "idle", "parameters": { "duration": 1.0 } },
-        { "action": "move_straight", "parameters": { "distance": 1.0, "direction": "backward" } }
+        { "action": "move_straight", "parameters": { "distance": 1.0, "direction": "backward", "speed": 0.3 } }
       ]
     }
   ]

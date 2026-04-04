@@ -1,154 +1,82 @@
-import time
-import numpy as np
 import mujoco
-from common.robot_api import BaseRobotController, RobotState
-from dataclasses import dataclass
 
-@dataclass
-class TracerState(RobotState):
-    global_pose: np.ndarray = None # [x, y, yaw]
+from common.differential_drive_controller import DifferentialDriveController
 
-class TracerController(BaseRobotController):
-    """
-    Controller for the Agilex Tracer robot (differential drive).
-    """
-    def __init__(self, model, data, robot_name, base_pos=None, base_quat=None, log_dir=None, **kwargs):
-        super().__init__(model, data, robot_name, base_pos, base_quat, log_dir)
-        
-        # Identify Actuators
-        # In tracer2.xml, the actuators are named "left_drive" and "right_drive"
-        # The SceneBuilder prefixes these with the robot_name
+
+class TracerController(DifferentialDriveController):
+    """Controller for the Agilex Tracer robot."""
+
+    # Keep these in sync with robots/tracer_control/agilex_tracer2/tracer2.xml.
+    WHEEL_RADIUS = 0.085
+    WHEEL_TRACK = 0.5074
+    DEFAULT_LINEAR_SPEED = 0.45
+    MAX_LINEAR_SPEED = 0.55
+    DEFAULT_ANGULAR_SPEED_DEG = 35.0
+    MAX_ANGULAR_SPEED_DEG = 60.0
+    LINEAR_ACCEL = 0.22
+    ANGULAR_ACCEL_DEG = 45.0
+    HEADING_KP = 2.0
+    TURN_KP = 8.0
+    LINEAR_DISTANCE_TOLERANCE = 0.03
+    HEADING_TOLERANCE_DEG = 3.0
+    MAX_COMPLETION_OVERRUN = 5.0
+
+    def __init__(
+        self,
+        model,
+        data,
+        robot_name,
+        base_pos=None,
+        base_quat=None,
+        log_dir=None,
+        **kwargs,
+    ):
         self.left_actuator_name = f"{robot_name}_left_drive"
         self.right_actuator_name = f"{robot_name}_right_drive"
         self.base_body_name = f"{robot_name}_base_link"
-        
-        # Performance parameters
-        self.rotate_wheel_speed = 5.0  # rad/s
-        self.move_wheel_speed = 5.0    # rad/s
+        self.left_sign = -1.0
+        self.right_sign = 1.0
+        super().__init__(model, data, robot_name, base_pos, base_quat, log_dir, **kwargs)
+        self._validate_geometry_assumptions()
 
-        try:
-            self.left_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, self.left_actuator_name)
-            self.right_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, self.right_actuator_name)
-            self.body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, self.base_body_name)
-        except Exception as e:
-            print(f"[{self.robot_name}] Error finding IDs: {e}")
-            self.left_id = -1
-            self.right_id = -1
-            self.body_id = -1
-
-    def get_robot_state(self) -> TracerState:
-        x, y, yaw = self._get_pose()
-        return TracerState(
-            timestamp=self.data.time,
-            global_pose=np.array([x, y, yaw])
-        )
-
-    def _get_pose(self):
-        """Returns (x, y, yaw) in World Frame."""
+    def _validate_geometry_assumptions(self):
+        """Warn early if the traced MJCF no longer matches the controller constants."""
         if self.body_id == -1:
-            return 0, 0, 0
-        pos = self.data.xpos[self.body_id]
-        quat = self.data.xquat[self.body_id] # w, x, y, z
-        w, x, y, z = quat
-        siny_cosp = 2 * (w * z + x * y)
-        cosy_cosp = 1 - 2 * (y * y + z * z)
-        yaw = np.arctan2(siny_cosp, cosy_cosp)
-        return pos[0], pos[1], yaw
+            return
+        left_body_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, f"{self.robot_name}_left_link")
+        right_body_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, f"{self.robot_name}_right_link")
+        if left_body_id == -1 or right_body_id == -1:
+            return
 
-    def _set_velocity(self, left, right):
-        # Tracer's left joint is inverted relative to the right joint in the XML
-        # To go forward, left needs negative command and right needs positive command
-        if self.left_id != -1:
-            self.data.ctrl[self.left_id] = -left
-        if self.right_id != -1:
-            self.data.ctrl[self.right_id] = right
+        modeled_track = abs(float(self.model.body_pos[left_body_id][1]) - float(self.model.body_pos[right_body_id][1]))
+        if abs(modeled_track - self.WHEEL_TRACK) > 0.01:
+            msg = (
+                f"[{self.robot_name}] Warning: tracer wheel track {modeled_track:.4f}m "
+                f"differs from controller constant {self.WHEEL_TRACK:.4f}m."
+            )
+            print(msg)
+            self.log(msg)
 
-    def _wait_for_stop(self, timeout=5.0):
-        """Waits until the base velocity is near zero using simulation time."""
-        sim_start_time = self.data.time
-        while self.data.time - sim_start_time < timeout:
-            vel = self.data.cvel[self.body_id] 
-            lin_speed = np.linalg.norm(vel[3:])
-            rot_speed = np.linalg.norm(vel[:3])
-            if lin_speed < 0.01 and rot_speed < 0.01:
+        for body_name in (f"{self.robot_name}_left_link", f"{self.robot_name}_right_link"):
+            body_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, body_name)
+            if body_id == -1:
+                continue
+            geom_start = int(self.model.body_geomadr[body_id])
+            geom_count = int(self.model.body_geomnum[body_id])
+            wheel_geom_id = -1
+            for geom_id in range(geom_start, geom_start + geom_count):
+                if self.model.geom_type[geom_id] == mujoco.mjtGeom.mjGEOM_CYLINDER:
+                    wheel_geom_id = geom_id
+                    break
+            if wheel_geom_id == -1:
+                continue
+
+            modeled_radius = float(self.model.geom_size[wheel_geom_id][0])
+            if abs(modeled_radius - self.WHEEL_RADIUS) > 0.005:
+                msg = (
+                    f"[{self.robot_name}] Warning: tracer wheel radius {modeled_radius:.4f}m "
+                    f"differs from controller constant {self.WHEEL_RADIUS:.4f}m."
+                )
+                print(msg)
+                self.log(msg)
                 break
-            time.sleep(0.001)
-
-    def action_turn(self, target_yaw: float, direction: str = "auto"):
-        if self.emergency_stop_flag: return
-        target_rad = np.deg2rad(target_yaw)
-        base_speed = self.rotate_wheel_speed
-        DECEL_THRESHOLD = np.deg2rad(20.0)
-        STOP_THRESHOLD = np.deg2rad(0.05)
-        MIN_SPEED = 3.0
-
-        _, _, start_yaw = self._get_pose()
-        diff = target_rad - start_yaw
-        diff = (diff + np.pi) % (2 * np.pi) - np.pi
-        if direction == "ccw" and diff < 0: diff += 2 * np.pi
-        elif direction == "cw" and diff > 0: diff -= 2 * np.pi
-
-        turn_angle = diff
-        turn_abs = abs(turn_angle)
-        turn_sign = np.sign(turn_angle)
-        accumulated_yaw = 0.0
-        last_yaw = start_yaw
-        
-        print(f"[{self.robot_name}] Turning to {target_yaw} deg...")
-        sim_start_time = self.data.time
-        step_count = 0
-        
-        while abs(accumulated_yaw) < turn_abs:
-            if self.emergency_stop_flag: 
-                self._set_velocity(0, 0)
-                return
-            _, _, curr_yaw = self._get_pose()
-            delta = curr_yaw - last_yaw
-            delta = (delta + np.pi) % (2 * np.pi) - np.pi
-            accumulated_yaw += delta
-            last_yaw = curr_yaw
-            remaining = turn_abs - abs(accumulated_yaw)
-            if remaining <= 0: break
-            current_speed = base_speed
-            if remaining < DECEL_THRESHOLD:
-                ratio = remaining / DECEL_THRESHOLD
-                current_speed = MIN_SPEED + (base_speed - MIN_SPEED) * ratio
-            if turn_sign > 0: self._set_velocity(-current_speed, current_speed)
-            else: self._set_velocity(current_speed, -current_speed)
-            
-            step_count += 1
-            while self.data.time < sim_start_time + (step_count * self.control_dt):
-                time.sleep(0.001)
-            
-        self._set_velocity(0, 0)
-        self._wait_for_stop()
-
-    def action_move_straight(self, distance: float, direction: str = "forward"):
-        if self.emergency_stop_flag: return
-        base_speed = self.move_wheel_speed
-        if direction == "backward": base_speed = -base_speed
-        Kp = 20.0 
-        start_x, start_y, start_yaw = self._get_pose()
-        start_pos = np.array([start_x, start_y])
-        target_yaw = start_yaw
-        
-        print(f"[{self.robot_name}] Moving straight {distance}m...")
-        sim_start_time = self.data.time
-        step_count = 0
-        while True:
-            if self.emergency_stop_flag:
-                self._set_velocity(0, 0)
-                return
-            curr_x, curr_y, curr_yaw = self._get_pose()
-            curr_pos = np.array([curr_x, curr_y])
-            dist_traveled = np.linalg.norm(curr_pos - start_pos)
-            if dist_traveled >= distance: break
-            yaw_error = curr_yaw - target_yaw
-            yaw_error = (yaw_error + np.pi) % (2 * np.pi) - np.pi
-            correction = Kp * yaw_error
-            self._set_velocity(base_speed + correction, base_speed - correction)
-            step_count += 1
-            while self.data.time < sim_start_time + (step_count * self.control_dt):
-                time.sleep(0.001)
-        self._set_velocity(0, 0)
-        self._wait_for_stop()

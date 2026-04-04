@@ -35,6 +35,7 @@ env/
 # Simulation Logs and Temp Files
 logs/
 temp_scene_*.xml
+MUJOCO_LOG.TXT
 
 # Project Specific
 GEMINI.md

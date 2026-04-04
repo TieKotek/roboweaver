@@ -1,148 +1,132 @@
-import time
-import numpy as np
 import mujoco
-from common.robot_api import BaseRobotController, RobotState
-from dataclasses import dataclass
 
-@dataclass
-class RbtheronState(RobotState):
-    global_pose: np.ndarray = None # [x, y, yaw]
+from common.differential_drive_controller import DifferentialDriveController
 
-class RbtheronController(BaseRobotController):
-    """
-    Controller for differential drive robots (e.g., RB-Theron).
-    """
-    def __init__(self, model, data, robot_name, base_pos=None, base_quat=None, log_dir=None, **kwargs):
-        super().__init__(model, data, robot_name, base_pos, base_quat, log_dir)
-        
-        # Identify Actuators
+
+class RbtheronController(DifferentialDriveController):
+    """Controller for the RB-Theron mobile base."""
+
+    WHEEL_RADIUS = 0.0762
+    WHEEL_TRACK = 0.5032
+    DEFAULT_LINEAR_SPEED = 0.35
+    MAX_LINEAR_SPEED = 0.45
+    DEFAULT_ANGULAR_SPEED_DEG = 30.0
+    MAX_ANGULAR_SPEED_DEG = 45.0
+    LINEAR_ACCEL = 0.25
+    ANGULAR_ACCEL_DEG = 60.0
+    HEADING_KP = 5.0
+    TURN_KP = 10.0
+    SETTLE_DURATION = 0.30
+    LINEAR_DISTANCE_TOLERANCE = 0.025
+    HEADING_TOLERANCE_DEG = 2.5
+    MAX_COMPLETION_OVERRUN = 4.0
+    WHEEL_RADIUS_TOLERANCE = 0.001
+    WHEEL_TRACK_TOLERANCE = 0.005
+    SUPPORT_CLEARANCE_MIN = 0.003
+    CHASSIS_SUPPORT_CLEARANCE_MIN = 0.01
+
+    def __init__(
+        self,
+        model,
+        data,
+        robot_name,
+        base_pos=None,
+        base_quat=None,
+        log_dir=None,
+        **kwargs,
+    ):
         self.left_actuator_name = f"{robot_name}_left_wheel_vel"
         self.right_actuator_name = f"{robot_name}_right_wheel_vel"
         self.base_body_name = f"{robot_name}_base_link"
-        self.rotate_wheel_speed = 20.0  # rad/s
-        self.move_wheel_speed = 30.0    # rad/s
+        self.left_sign = 1.0
+        self.right_sign = 1.0
+        super().__init__(model, data, robot_name, base_pos, base_quat, log_dir, **kwargs)
+        self._validate_geometry_assumptions()
 
-        try:
-            self.left_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, self.left_actuator_name)
-            self.right_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, self.right_actuator_name)
-            self.body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, self.base_body_name)
-        except Exception as e:
-            print(f"[{self.robot_name}] Error finding IDs: {e}")
-            self.left_id = -1
-            self.right_id = -1
-            self.body_id = -1
+    def _warn(self, message: str):
+        print(message)
+        self.log(message)
 
-    def get_robot_state(self) -> RbtheronState:
-        x, y, yaw = self._get_pose()
-        return RbtheronState(
-            timestamp=self.data.time,
-            global_pose=np.array([x, y, yaw])
+    def _require_named_id(self, obj_type, name: str, label: str) -> int:
+        obj_id = mujoco.mj_name2id(self.model, obj_type, name)
+        if obj_id == -1:
+            raise RuntimeError(f"[{self.robot_name}] Missing required {label} '{name}' in rbtheron MJCF.")
+        return obj_id
+
+    def _validate_geometry_assumptions(self):
+        """Fail fast if rbtheron geometry no longer matches controller assumptions."""
+        if self.model is None or self.body_id == -1:
+            return
+
+        left_body_id = self._require_named_id(
+            mujoco.mjtObj.mjOBJ_BODY,
+            f"{self.robot_name}_left_wheel_link",
+            "wheel body",
+        )
+        right_body_id = self._require_named_id(
+            mujoco.mjtObj.mjOBJ_BODY,
+            f"{self.robot_name}_right_wheel_link",
+            "wheel body",
+        )
+        left_geom_id = self._require_named_id(
+            mujoco.mjtObj.mjOBJ_GEOM,
+            f"{self.robot_name}_left_wheel_geom",
+            "wheel geom",
+        )
+        right_geom_id = self._require_named_id(
+            mujoco.mjtObj.mjOBJ_GEOM,
+            f"{self.robot_name}_right_wheel_geom",
+            "wheel geom",
         )
 
-    def _get_pose(self):
-        """Returns (x, y, yaw) in World Frame."""
-        if self.body_id == -1:
-            return 0, 0, 0
-        pos = self.data.xpos[self.body_id]
-        quat = self.data.xquat[self.body_id] # w, x, y, z
-        w, x, y, z = quat
-        siny_cosp = 2 * (w * z + x * y)
-        cosy_cosp = 1 - 2 * (y * y + z * z)
-        yaw = np.arctan2(siny_cosp, cosy_cosp)
-        return pos[0], pos[1], yaw
+        modeled_track = abs(
+            float(self.model.body_pos[left_body_id][1]) - float(self.model.body_pos[right_body_id][1])
+        )
+        if abs(modeled_track - self.WHEEL_TRACK) > self.WHEEL_TRACK_TOLERANCE:
+            raise RuntimeError(
+                f"[{self.robot_name}] rbtheron wheel track {modeled_track:.4f}m differs from controller "
+                f"constant {self.WHEEL_TRACK:.4f}m."
+            )
 
-    def _set_velocity(self, left, right):
-        if self.left_id != -1:
-            self.data.ctrl[self.left_id] = left
-        if self.right_id != -1:
-            self.data.ctrl[self.right_id] = right
+        for geom_id in (left_geom_id, right_geom_id):
+            modeled_radius = float(self.model.geom_size[geom_id][0])
+            if abs(modeled_radius - self.WHEEL_RADIUS) > self.WHEEL_RADIUS_TOLERANCE:
+                raise RuntimeError(
+                    f"[{self.robot_name}] rbtheron wheel radius {modeled_radius:.4f}m differs from controller "
+                    f"constant {self.WHEEL_RADIUS:.4f}m."
+                )
 
-    def _wait_for_stop(self, timeout=5.0):
-        """Waits until the base velocity is near zero using simulation time."""
-        sim_start_time = self.data.time
-        while self.data.time - sim_start_time < timeout:
-            vel = self.data.cvel[self.body_id] 
-            lin_speed = np.linalg.norm(vel[3:])
-            rot_speed = np.linalg.norm(vel[:3])
-            if lin_speed < 0.01 and rot_speed < 0.01:
-                break
-            time.sleep(0.001)
+        wheel_bottom = (
+            float(self.model.body_pos[left_body_id][2])
+            + float(self.model.geom_pos[left_geom_id][2])
+            - float(self.model.geom_size[left_geom_id][0])
+        )
+        support_bottoms = []
+        for support_name in (f"{self.robot_name}_front_support", f"{self.robot_name}_rear_support"):
+            support_geom_id = self._require_named_id(
+                mujoco.mjtObj.mjOBJ_GEOM,
+                support_name,
+                "support geom",
+            )
+            support_bottom = (
+                float(self.model.geom_pos[support_geom_id][2]) - float(self.model.geom_size[support_geom_id][0])
+            )
+            support_bottoms.append(support_bottom)
+            if support_bottom <= (wheel_bottom + self.SUPPORT_CLEARANCE_MIN):
+                raise RuntimeError(
+                    f"[{self.robot_name}] support geom '{support_name}' is too close to or below the drive-wheel "
+                    f"contact plane ({support_bottom:.4f}m vs {wheel_bottom:.4f}m)."
+                )
 
-    def action_turn(self, target_yaw: float, direction: str = "auto"):
-        if self.emergency_stop_flag: return
-        target_rad = np.deg2rad(target_yaw)
-        base_speed = self.rotate_wheel_speed
-        DECEL_THRESHOLD = np.deg2rad(20.0)
-        STOP_THRESHOLD = np.deg2rad(0.05)
-        MIN_SPEED = 2.0
-
-        _, _, start_yaw = self._get_pose()
-        diff = target_rad - start_yaw
-        diff = (diff + np.pi) % (2 * np.pi) - np.pi
-        if direction == "ccw" and diff < 0: diff += 2 * np.pi
-        elif direction == "cw" and diff > 0: diff -= 2 * np.pi
-
-        turn_angle = diff
-        turn_abs = abs(turn_angle)
-        turn_sign = np.sign(turn_angle)
-        accumulated_yaw = 0.0
-        last_yaw = start_yaw
-        
-        print(f"[{self.robot_name}] Turning to {target_yaw} deg...")
-        sim_start_time = self.data.time
-        step_count = 0
-        
-        while abs(accumulated_yaw) < turn_abs:
-            if self.emergency_stop_flag: 
-                self._set_velocity(0, 0)
-                return
-            _, _, curr_yaw = self._get_pose()
-            delta = curr_yaw - last_yaw
-            delta = (delta + np.pi) % (2 * np.pi) - np.pi
-            accumulated_yaw += delta
-            last_yaw = curr_yaw
-            remaining = turn_abs - abs(accumulated_yaw)
-            if remaining <= 0: break
-            current_speed = base_speed
-            if remaining < DECEL_THRESHOLD:
-                ratio = remaining / DECEL_THRESHOLD
-                current_speed = MIN_SPEED + (base_speed - MIN_SPEED) * ratio
-            if turn_sign > 0: self._set_velocity(-current_speed, current_speed)
-            else: self._set_velocity(current_speed, -current_speed)
-            
-            step_count += 1
-            while self.data.time < sim_start_time + (step_count * self.control_dt):
-                time.sleep(0.001)
-            
-        self._set_velocity(0, 0)
-        self._wait_for_stop()
-
-    def action_move_straight(self, distance: float, direction: str = "forward"):
-        if self.emergency_stop_flag: return
-        base_speed = self.move_wheel_speed
-        if direction == "backward": base_speed = -base_speed
-        Kp = 20.0 
-        start_x, start_y, start_yaw = self._get_pose()
-        start_pos = np.array([start_x, start_y])
-        target_yaw = start_yaw
-        
-        print(f"[{self.robot_name}] Moving straight {distance}m...")
-        sim_start_time = self.data.time
-        step_count = 0
-        while True:
-            if self.emergency_stop_flag:
-                self._set_velocity(0, 0)
-                return
-            curr_x, curr_y, curr_yaw = self._get_pose()
-            curr_pos = np.array([curr_x, curr_y])
-            dist_traveled = np.linalg.norm(curr_pos - start_pos)
-            if dist_traveled >= distance: break
-            yaw_error = curr_yaw - target_yaw
-            yaw_error = (yaw_error + np.pi) % (2 * np.pi) - np.pi
-            correction = Kp * yaw_error
-            self._set_velocity(base_speed + correction, base_speed - correction)
-            step_count += 1
-            while self.data.time < sim_start_time + (step_count * self.control_dt):
-                time.sleep(0.001)
-        self._set_velocity(0, 0)
-        self._wait_for_stop()
+        chassis_geom_id = self._require_named_id(
+            mujoco.mjtObj.mjOBJ_GEOM,
+            f"{self.robot_name}_chassis_collision",
+            "chassis collision geom",
+        )
+        chassis_bottom = float(self.model.geom_pos[chassis_geom_id][2]) - float(self.model.geom_size[chassis_geom_id][2])
+        highest_support_bottom = max(support_bottoms)
+        if chassis_bottom <= (highest_support_bottom + self.CHASSIS_SUPPORT_CLEARANCE_MIN):
+            raise RuntimeError(
+                f"[{self.robot_name}] chassis collision geom is too close to the support contact plane "
+                f"({chassis_bottom:.4f}m vs {highest_support_bottom:.4f}m)."
+            )

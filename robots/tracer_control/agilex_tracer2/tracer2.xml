@@ -8,10 +8,19 @@
     <default class="collision">
       <geom group="1" friction="3.0 0.005 0.0001"/>
       <default class="wheel">
-        <geom type="cylinder" size="0.085 0.02"/>
+        <geom
+          type="cylinder"
+          size="0.085 0.02"
+          condim="4"
+          friction="4.0 0.02 0.0001"
+        />
       </default>
       <default class="caster">
-        <geom type="sphere" size="0.02" friction="0.001 0.005 0.0001"/>
+        <geom
+          type="sphere"
+          size="0.02"
+          friction="0.005 0.0005 0.00005"
+        />
       </default>
     </default>
   </default>
@@ -68,7 +77,7 @@
   </worldbody>
 
   <actuator>
-    <velocity name="right_drive" joint="right_joint" kv="40" ctrlrange="-20 20"/>
-    <velocity name="left_drive" joint="left_joint" kv="40" ctrlrange="-20 20"/>
+    <velocity name="right_drive" joint="right_joint" kv="40" ctrlrange="-16 16"/>
+    <velocity name="left_drive" joint="left_joint" kv="40" ctrlrange="-16 16"/>
   </actuator>
 </mujoco>
