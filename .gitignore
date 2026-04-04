@@ -40,5 +40,6 @@ temp_scene_*.xml
 GEMINI.md
 AGENTS.md
 .geminiignore
+.worktrees/
 .DS_Store
 Thumbs.db
