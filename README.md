@@ -22,6 +22,8 @@
 | Type (`type`) | Model | Category | Core Capabilities |
 | :--- | :--- | :--- | :--- |
 | `piper` | AgileX PiPER | 6-DOF arm | `move_cartesian`, `move_joints`, `gripper` |
+| `mirobot` | WLKATA Mirobot | 6-DOF arm | `move_cartesian`, `move_linear`, `move_joints` |
+| `franka` | Franka Emika Panda | 7-DOF arm | `move_cartesian`, `move_linear`, `move_joints`, `gripper` |
 | `stretch` | Hello Robot Stretch 3 | Mobile manipulator | base and arm control |
 | `tracer` | AgileX Tracer 2 | Differential AMR | base motion |
 | `rbtheron` | Robotnik RB-Theron | Omnidirectional AMR | base motion |
@@ -41,6 +43,10 @@
 3. Run headless:
    ```bash
    python run_robots.py examples/conveyor_robot_demo.json --headless
+   ```
+4. Run the Franka grasp demo:
+   ```bash
+   python run_robots.py examples/franka_arm_demo.json --headless
    ```
 
 ### Configuration Guide
@@ -91,6 +97,14 @@ Example:
 }
 ```
 
+Common arm actions:
+
+- `move_joints`
+- `move_cartesian`
+- `move_linear`
+- `home`
+- `open_gripper` / `close_gripper` for gripper-equipped arms
+
 ### Conveyor Behavior
 
 Conveyors now use normal scene-object collision behavior. Any movable object placed on the visible belt surface will be carried by the conveyor without any extra role flag or collision-group setting.
@@ -100,6 +114,20 @@ Conveyors now use normal scene-object collision behavior. Any movable object pla
 - Objects move while they remain on the belt and fall only after they pass beyond its end.
 
 This keeps scenario JSON simple: ordinary boxes, cylinders, or other movable objects can be placed on the belt directly.
+
+### Franka Notes
+
+Franka runtime support is self-contained under `robots/franka_control/`.
+
+- MuJoCo model: `robots/franka_control/franka_emika_panda/panda.xml`
+- IKPy URDF: `robots/franka_control/franka_panda.urdf`
+- Demo: `examples/franka_arm_demo.json`
+
+`franka` and `piper` both use fixed gripper timing:
+
+- `open_gripper` always occupies 2 simulated seconds
+- `close_gripper` always occupies 2 simulated seconds
+- the next action does not start early even if the fingers reach the target sooner
 
 ### Developer Notes
 
@@ -130,6 +158,8 @@ To add a new robot:
 | 类型 (`type`) | 模型 | 类别 | 主要能力 |
 | :--- | :--- | :--- | :--- |
 | `piper` | AgileX PiPER | 六轴机械臂 | `move_cartesian`, `move_joints`, `gripper` |
+| `mirobot` | WLKATA Mirobot | 六轴机械臂 | `move_cartesian`, `move_linear`, `move_joints` |
+| `franka` | Franka Emika Panda | 七轴机械臂 | `move_cartesian`, `move_linear`, `move_joints`, `gripper` |
 | `stretch` | Hello Robot Stretch 3 | 移动操作机器人 | 底盘与机械臂控制 |
 | `tracer` | AgileX Tracer 2 | 差速移动底盘 | 底盘运动 |
 | `rbtheron` | Robotnik RB-Theron | 全向移动底盘 | 底盘运动 |
@@ -149,6 +179,10 @@ To add a new robot:
 3. 无界面运行：
    ```bash
    python run_robots.py examples/conveyor_robot_demo.json --headless
+   ```
+4. 运行 Franka 抓取示例：
+   ```bash
+   python run_robots.py examples/franka_arm_demo.json --headless
    ```
 
 ### 配置说明
@@ -199,6 +233,14 @@ To add a new robot:
 }
 ```
 
+机械臂常用动作包括：
+
+- `move_joints`
+- `move_cartesian`
+- `move_linear`
+- `home`
+- 带夹爪的机械臂支持 `open_gripper` / `close_gripper`
+
 ### 传送带行为
 
 传送带现在使用普通场景物体碰撞语义，不再需要 `role: "cargo"` 之类的额外配置。只要物体是可移动的，并且真正放在可见皮带表面上，它就会被传送带带走。
@@ -208,6 +250,20 @@ To add a new robot:
 - 物体只要还在皮带范围内就会持续运动，超出末端后才会掉落。
 
 这样配置文件会更简单：普通方块、圆柱或其他可移动物体都可以直接放到皮带上，不需要专门的角色字段。
+
+### Franka 说明
+
+Franka 的运行依赖已经收敛到 `robots/franka_control/` 目录内。
+
+- MuJoCo 模型：`robots/franka_control/franka_emika_panda/panda.xml`
+- IKPy 使用的 URDF：`robots/franka_control/franka_panda.urdf`
+- 示例：`examples/franka_arm_demo.json`
+
+`franka` 和 `piper` 的夹爪动作采用固定时长策略：
+
+- `open_gripper` 固定占用 2 秒仿真时间
+- `close_gripper` 固定占用 2 秒仿真时间
+- 即使提前到位，也会等满 2 秒才开始下一步动作
 
 ### 开发说明
 

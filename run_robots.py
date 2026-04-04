@@ -16,9 +16,7 @@ import xml.etree.ElementTree as ET
 import uuid
 import numpy as np
 import math
-from pathlib import Path
 from typing import Dict, Any, List, Set
-import numpy as np
 
 # --- Robot Registry ---
 from common.robot_api import BaseRobotController
@@ -29,6 +27,7 @@ from robots.stretch_control.stretch_controller import StretchController
 from robots.skydio_control.skydio_controller import SkydioController
 from robots.conveyor_control.conveyor_controller import ConveyorController
 from robots.mirobot_control.mirobot_controller import MirobotController
+from robots.franka_control.franka_controller import FrankaController
 
 ROBOT_CLASSES = {
     "piper": PiperController,
@@ -38,12 +37,14 @@ ROBOT_CLASSES = {
     "skydio": SkydioController,
     "conveyor": ConveyorController,
     "mirobot": MirobotController,
+    "franka": FrankaController,
 }
 
 # Optional: Only when controller needs URDF files
 ROBOT_URDFS = {
     "piper": "robots/piper_control/agilex_piper/piper_description.urdf",
     "mirobot": "robots/mirobot_control/mirobot.urdf",
+    "franka": "robots/franka_control/franka_panda.urdf",
 }
 
 ROBOT_XML_TEMPLATES = {
@@ -54,6 +55,7 @@ ROBOT_XML_TEMPLATES = {
     "skydio": "robots/skydio_control/skydio_x2/x2.xml",
     "conveyor": "robots/conveyor_control/conveyor/conveyor.xml",
     "mirobot": "robots/mirobot_control/mirobot.xml",
+    "franka": "robots/franka_control/franka_emika_panda/panda.xml",
 }
 
 DEFAULT_CONVEYOR_LENGTH = 1.04

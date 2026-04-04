@@ -1,0 +1,85 @@
+{
+  "description": "Franka Panda basic motion and gripper demo",
+  "scene": {
+    "objects": [
+      {
+        "name": "work_block",
+        "type": "box",
+        "size": [0.018, 0.012, 0.04],
+        "pos": [0.55, 0.0, 0.04],
+        "rgba": [0.88, 0.42, 0.18, 1.0],
+        "movable": true,
+        "mass": 0.03,
+        "friction": [2.0, 0.02, 0.002]
+      }
+    ]
+  },
+  "robots": [
+    {
+      "name": "franka1",
+      "type": "franka",
+      "base_pos": [0.0, 0.0, 0.0],
+      "sequence": [
+        {
+          "action": "move_joints",
+          "parameters": {
+            "joints": [0.0, -0.35, 0.0, -1.95, 0.0, 1.75, 0.78],
+            "duration": 2.5
+          },
+          "description": "Move to a forward joint-space pose"
+        },
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [0.55, 0.0, 0.18],
+            "euler": [180, 0, 0],
+            "duration": 2.5
+          },
+          "description": "Move above the block with the gripper facing down"
+        },
+        {
+          "action": "move_linear",
+          "parameters": {
+            "pose": [0.55, 0.0, 0.03],
+            "euler": [180, 0, 0],
+            "duration": 2.5
+          },
+          "description": "Descend to the grasp height"
+        },
+        {
+          "action": "close_gripper",
+          "description": "Close gripper around the block"
+        },
+        {
+          "action": "move_linear",
+          "parameters": {
+            "pose": [0.55, 0.0, 0.20],
+            "euler": [180, 0, 0],
+            "duration": 2.5
+          },
+          "description": "Lift the block vertically"
+        },
+        {
+          "action": "move_linear",
+          "parameters": {
+            "pose": [0.42, -0.12, 0.20],
+            "euler": [180, 0, 0],
+            "duration": 2.5
+          },
+          "description": "Carry the block to a drop-off point"
+        },
+        {
+          "action": "open_gripper",
+          "description": "Release the block"
+        },
+        {
+          "action": "home",
+          "parameters": {
+            "duration": 2.5
+          },
+          "description": "Return home"
+        }
+      ]
+    }
+  ]
+}

@@ -358,7 +358,7 @@ class PiperController(BaseRobotController):
         self._set_gripper_ctrl(target_position)
 
         sim_start_time = self.data.time
-        timeout = 2.0
+        action_duration = 2.0
         
         pos_tolerance = 0.001
         vel_tolerance = 0.002
@@ -369,7 +369,7 @@ class PiperController(BaseRobotController):
         stall_sim_time = 0.0
         settle_duration = 0.5 # Simulation seconds
 
-        while self.data.time - sim_start_time < timeout:
+        while self.data.time - sim_start_time < action_duration:
             if self.emergency_stop_flag: break
 
             qpos_adr = self.model.jnt_qposadr[self.kinematics.gripper_id]
@@ -377,9 +377,6 @@ class PiperController(BaseRobotController):
             
             current_pos = self.data.qpos[qpos_adr]
             current_vel = self.data.qvel[qvel_adr]
-
-            if abs(current_pos - target_position) < pos_tolerance:
-                break
 
             if target_position < current_pos: 
                 if abs(current_vel) < vel_tolerance:
@@ -391,14 +388,14 @@ class PiperController(BaseRobotController):
                     if not stalled:
                         stalled = True
                         stall_sim_time = self.data.time
-                    
+
                     if self.data.time - stall_sim_time > settle_duration:
-                        break
+                        stalled = True
             
             time.sleep(0.001)
         
-        # Check if we timed out (using sim time)
-        if self.data.time - sim_start_time >= timeout:
+        # Keep the historical timeout semantics, but the action always occupies 2s.
+        if self.data.time - sim_start_time >= action_duration:
             # print(f"[{self.robot_name}] Gripper timeout! Target: {target_position}")
             pass
 
