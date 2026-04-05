@@ -44,3 +44,6 @@ AGENTS.md
 .worktrees/
 .DS_Store
 Thumbs.db
+tests/
+docs/
+

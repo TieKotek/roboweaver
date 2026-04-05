@@ -28,10 +28,11 @@ class DifferentialDriveController(BaseRobotController):
     ANGULAR_ACCEL_DEG = 90.0
     HEADING_KP = 2.0
     TURN_KP = 3.0
-    SETTLE_DURATION = 0.25
     LINEAR_DISTANCE_TOLERANCE = 0.02
     HEADING_TOLERANCE_DEG = 2.0
     MAX_COMPLETION_OVERRUN = 2.0
+    LINEAR_SETTLE_SPEED = 0.03
+    ANGULAR_SETTLE_SPEED_DEG = 3.0
 
     left_actuator_name: Optional[str] = None
     right_actuator_name: Optional[str] = None
@@ -284,6 +285,12 @@ class DifferentialDriveController(BaseRobotController):
         angular_speed = float(np.linalg.norm(vel[:3]))
         return linear_speed, angular_speed
 
+    def _is_settled(self, linear_speed: float, angular_speed: float) -> bool:
+        return (
+            abs(linear_speed) <= float(self.LINEAR_SETTLE_SPEED)
+            and abs(angular_speed) <= math.radians(float(self.ANGULAR_SETTLE_SPEED_DEG))
+        )
+
     def _command_wheels(self, left_rad_s: float, right_rad_s: float):
         if self.data is None:
             return
@@ -328,13 +335,12 @@ class DifferentialDriveController(BaseRobotController):
         target_distance = profile["distance"]
         start_x, start_y, start_yaw = self._get_pose()
         sim_start_time = getattr(self.data, "time", 0.0)
-        deadline = profile["duration"] + self.SETTLE_DURATION
-        max_deadline = deadline + self.MAX_COMPLETION_OVERRUN
+        max_deadline = profile["duration"] + self.MAX_COMPLETION_OVERRUN
         heading_tolerance = math.radians(self.HEADING_TOLERANCE_DEG)
 
         print(
             f"[{self.robot_name}] Moving {abs(distance):.2f}m {direction} at {profile['peak_speed']:.2f}m/s "
-            f"(Traj Duration: {profile['duration']:.2f}s + {self.SETTLE_DURATION:.2f}s settle time)..."
+            f"(Traj Duration: {profile['duration']:.2f}s)..."
         )
 
         try:
@@ -350,17 +356,20 @@ class DifferentialDriveController(BaseRobotController):
                 left, right = self._body_twist_to_wheels(direction_sign * speed_now, angular_cmd)
                 self._command_wheels(left, right)
 
-                if elapsed >= deadline:
-                    heading_ok = abs(yaw_error) <= heading_tolerance
-                    progress_ok = progress >= (target_distance - self.LINEAR_DISTANCE_TOLERANCE)
-                    if heading_ok and progress_ok:
-                        break
-                    if elapsed >= max_deadline:
-                        raise RuntimeError(
-                            f"[{self.robot_name}] Straight motion did not reach the planned endpoint: "
-                            f"progress={progress:.3f}m target={target_distance:.3f}m "
-                            f"heading_error={math.degrees(yaw_error):.2f}deg"
-                        )
+                linear_speed, angular_speed = self._get_base_velocity()
+                heading_ok = abs(yaw_error) <= heading_tolerance
+                progress_ok = progress >= (target_distance - self.LINEAR_DISTANCE_TOLERANCE)
+                settled = self._is_settled(linear_speed, angular_speed)
+
+                if elapsed >= profile["duration"] and heading_ok and progress_ok and settled:
+                    break
+
+                if elapsed >= max_deadline:
+                    raise RuntimeError(
+                        f"[{self.robot_name}] Straight motion did not reach the planned endpoint: "
+                        f"progress={progress:.3f}m target={target_distance:.3f}m "
+                        f"heading_error={math.degrees(yaw_error):.2f}deg"
+                    )
 
                 self._wait_until(getattr(self.data, "time", 0.0) + self.control_dt)
         finally:
@@ -384,8 +393,7 @@ class DifferentialDriveController(BaseRobotController):
         profile = self._build_angular_profile(delta, requested_speed)
         turn_sign = 1.0 if delta >= 0.0 else -1.0
         sim_start_time = getattr(self.data, "time", 0.0)
-        deadline = profile["duration"] + self.SETTLE_DURATION
-        max_deadline = deadline + self.MAX_COMPLETION_OVERRUN
+        max_deadline = profile["duration"] + self.MAX_COMPLETION_OVERRUN
         angle_tolerance = math.radians(self.HEADING_TOLERANCE_DEG)
         target_delta = abs(delta)
         accumulated_yaw = 0.0
@@ -393,7 +401,7 @@ class DifferentialDriveController(BaseRobotController):
 
         print(
             f"[{self.robot_name}] Turning to {target_yaw:.1f} deg at {math.degrees(profile['peak_speed']):.1f} deg/s "
-            f"(Traj Duration: {profile['duration']:.2f}s + {self.SETTLE_DURATION:.2f}s settle time)..."
+            f"(Traj Duration: {profile['duration']:.2f}s)..."
         )
 
         try:
@@ -410,18 +418,21 @@ class DifferentialDriveController(BaseRobotController):
                 left, right = self._body_twist_to_wheels(0.0, angular_cmd)
                 self._command_wheels(left, right)
 
-                if elapsed >= deadline:
-                    heading_ok = abs(yaw_error) <= angle_tolerance
-                    progress_ok = abs(accumulated_yaw) >= (target_delta - angle_tolerance)
-                    if heading_ok and progress_ok:
-                        break
-                    if elapsed >= max_deadline:
-                        raise RuntimeError(
-                            f"[{self.robot_name}] Turn did not reach the planned heading: "
-                            f"progress={math.degrees(accumulated_yaw):.2f}deg "
-                            f"target={math.degrees(target_delta):.2f}deg "
-                            f"heading_error={math.degrees(yaw_error):.2f}deg"
-                        )
+                linear_speed, angular_speed = self._get_base_velocity()
+                heading_ok = abs(yaw_error) <= angle_tolerance
+                progress_ok = abs(accumulated_yaw) >= (target_delta - angle_tolerance)
+                settled = self._is_settled(linear_speed, angular_speed)
+
+                if elapsed >= profile["duration"] and heading_ok and progress_ok and settled:
+                    break
+
+                if elapsed >= max_deadline:
+                    raise RuntimeError(
+                        f"[{self.robot_name}] Turn did not reach the planned heading: "
+                        f"progress={math.degrees(accumulated_yaw):.2f}deg "
+                        f"target={math.degrees(target_delta):.2f}deg "
+                        f"heading_error={math.degrees(yaw_error):.2f}deg"
+                    )
 
                 self._wait_until(getattr(self.data, "time", 0.0) + self.control_dt)
         finally:

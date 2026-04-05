@@ -9,17 +9,17 @@ class TracerController(DifferentialDriveController):
     # Keep these in sync with robots/tracer_control/agilex_tracer2/tracer2.xml.
     WHEEL_RADIUS = 0.085
     WHEEL_TRACK = 0.5074
-    DEFAULT_LINEAR_SPEED = 0.45
-    MAX_LINEAR_SPEED = 0.55
-    DEFAULT_ANGULAR_SPEED_DEG = 35.0
-    MAX_ANGULAR_SPEED_DEG = 60.0
-    LINEAR_ACCEL = 0.22
-    ANGULAR_ACCEL_DEG = 45.0
-    HEADING_KP = 2.0
-    TURN_KP = 8.0
-    LINEAR_DISTANCE_TOLERANCE = 0.03
-    HEADING_TOLERANCE_DEG = 3.0
-    MAX_COMPLETION_OVERRUN = 5.0
+    DEFAULT_LINEAR_SPEED = 0.35
+    MAX_LINEAR_SPEED = 0.45
+    DEFAULT_ANGULAR_SPEED_DEG = 30.0
+    MAX_ANGULAR_SPEED_DEG = 45.0
+    LINEAR_ACCEL = 0.25
+    ANGULAR_ACCEL_DEG = 60.0
+    HEADING_KP = 5.0
+    TURN_KP = 10.0
+    LINEAR_DISTANCE_TOLERANCE = 0.025
+    HEADING_TOLERANCE_DEG = 2.5
+    MAX_COMPLETION_OVERRUN = 4.0
 
     def __init__(
         self,

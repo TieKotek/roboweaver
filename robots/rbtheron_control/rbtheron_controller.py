@@ -8,6 +8,12 @@ class RbtheronController(DifferentialDriveController):
 
     WHEEL_RADIUS = 0.0762
     WHEEL_TRACK = 0.5032
+    SUPPORT_GEOM_NAMES = (
+        "front_left_support",
+        "front_right_support",
+        "rear_left_support",
+        "rear_right_support",
+    )
     DEFAULT_LINEAR_SPEED = 0.35
     MAX_LINEAR_SPEED = 0.45
     DEFAULT_ANGULAR_SPEED_DEG = 30.0
@@ -16,13 +22,12 @@ class RbtheronController(DifferentialDriveController):
     ANGULAR_ACCEL_DEG = 60.0
     HEADING_KP = 5.0
     TURN_KP = 10.0
-    SETTLE_DURATION = 0.30
     LINEAR_DISTANCE_TOLERANCE = 0.025
     HEADING_TOLERANCE_DEG = 2.5
     MAX_COMPLETION_OVERRUN = 4.0
     WHEEL_RADIUS_TOLERANCE = 0.001
     WHEEL_TRACK_TOLERANCE = 0.005
-    SUPPORT_CLEARANCE_MIN = 0.003
+    SUPPORT_CLEARANCE_MIN = -0.0002
     CHASSIS_SUPPORT_CLEARANCE_MIN = 0.01
 
     def __init__(
@@ -102,14 +107,17 @@ class RbtheronController(DifferentialDriveController):
             - float(self.model.geom_size[left_geom_id][0])
         )
         support_bottoms = []
-        for support_name in (f"{self.robot_name}_front_support", f"{self.robot_name}_rear_support"):
+        for support_name in self.SUPPORT_GEOM_NAMES:
             support_geom_id = self._require_named_id(
                 mujoco.mjtObj.mjOBJ_GEOM,
-                support_name,
+                f"{self.robot_name}_{support_name}",
                 "support geom",
             )
+            support_body_id = int(self.model.geom_bodyid[support_geom_id])
             support_bottom = (
-                float(self.model.geom_pos[support_geom_id][2]) - float(self.model.geom_size[support_geom_id][0])
+                float(self.model.body_pos[support_body_id][2])
+                + float(self.model.geom_pos[support_geom_id][2])
+                - self._support_half_height(support_geom_id)
             )
             support_bottoms.append(support_bottom)
             if support_bottom <= (wheel_bottom + self.SUPPORT_CLEARANCE_MIN):
@@ -130,3 +138,16 @@ class RbtheronController(DifferentialDriveController):
                 f"[{self.robot_name}] chassis collision geom is too close to the support contact plane "
                 f"({chassis_bottom:.4f}m vs {highest_support_bottom:.4f}m)."
             )
+
+    def _support_half_height(self, geom_id: int) -> float:
+        geom_type = int(self.model.geom_type[geom_id])
+        if geom_type == mujoco.mjtGeom.mjGEOM_SPHERE:
+            return float(self.model.geom_size[geom_id][0])
+        if geom_type == mujoco.mjtGeom.mjGEOM_BOX:
+            return float(self.model.geom_size[geom_id][2])
+        if geom_type == mujoco.mjtGeom.mjGEOM_CYLINDER:
+            return float(self.model.geom_size[geom_id][0])
+        raise RuntimeError(
+            f"[{self.robot_name}] Unsupported rbtheron support geom type "
+            f"{mujoco.mjtGeom(geom_type).name.lower()}."
+        )

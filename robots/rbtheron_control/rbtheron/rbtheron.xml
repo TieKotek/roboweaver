@@ -19,9 +19,21 @@
     <default class="support">
       <geom
         type="sphere"
-        size="0.018"
-        friction="0.002 0.0005 0.00005"
+        size="0.035"
+        friction="0.001 0.0001 0.00001"
+        solimp="0.70 0.90 0.001"
+        solref="0.04 1"
         rgba="0 0 0 0"
+      />
+    </default>
+    <default class="support_visual">
+      <geom
+        type="cylinder"
+        size="0.045 0.014"
+        quat="0.707107 0.707107 0 0"
+        contype="0"
+        conaffinity="0"
+        rgba="0.10 0.10 0.10 1"
       />
     </default>
   </default>
@@ -57,8 +69,30 @@
         <geom name="left_wheel_geom" class="wheel"/>
       </body>
 
-      <geom name="front_support" class="support" pos="0.24 0 0.028"/>
-      <geom name="rear_support" class="support" pos="-0.24 0 0.028"/>
+      <body name="front_left_support_link" pos="0.235 0.1825 0.035">
+        <inertial pos="0 0 0" mass="0.05" diaginertia="0.00002 0.00002 0.00002"/>
+        <joint name="front_left_support_slide" type="slide" axis="0 0 1" range="0 0.01" stiffness="1500" damping="80"/>
+        <geom name="front_left_support" class="support"/>
+        <geom name="front_left_support_visual" class="support_visual"/>
+      </body>
+      <body name="front_right_support_link" pos="0.235 -0.1825 0.035">
+        <inertial pos="0 0 0" mass="0.05" diaginertia="0.00002 0.00002 0.00002"/>
+        <joint name="front_right_support_slide" type="slide" axis="0 0 1" range="0 0.01" stiffness="1500" damping="80"/>
+        <geom name="front_right_support" class="support"/>
+        <geom name="front_right_support_visual" class="support_visual"/>
+      </body>
+      <body name="rear_left_support_link" pos="-0.235 0.1825 0.035">
+        <inertial pos="0 0 0" mass="0.05" diaginertia="0.00002 0.00002 0.00002"/>
+        <joint name="rear_left_support_slide" type="slide" axis="0 0 1" range="0 0.01" stiffness="1500" damping="80"/>
+        <geom name="rear_left_support" class="support"/>
+        <geom name="rear_left_support_visual" class="support_visual"/>
+      </body>
+      <body name="rear_right_support_link" pos="-0.235 -0.1825 0.035">
+        <inertial pos="0 0 0" mass="0.05" diaginertia="0.00002 0.00002 0.00002"/>
+        <joint name="rear_right_support_slide" type="slide" axis="0 0 1" range="0 0.01" stiffness="1500" damping="80"/>
+        <geom name="rear_right_support" class="support"/>
+        <geom name="rear_right_support_visual" class="support_visual"/>
+      </body>
     </body>
   </worldbody>
 

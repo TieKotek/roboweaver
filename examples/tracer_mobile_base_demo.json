@@ -10,20 +10,20 @@
     {
       "name": "tracer_bot",
       "type": "tracer",
-      "base_pos": [0, 0, 0.1],
+      "base_pos": [0, 0, 0.176],
       "base_yaw": 45.0,
       "sequence": [
-        {"action": "idle", "parameters": { "duration": 1.0 } },
-        {"action": "turn", "parameters": { "target_yaw": 0.0, "direction": "auto" } },
-        {"action": "idle", "parameters": { "duration": 1.0 } },
-        { "action": "move_straight", "parameters": { "distance": 1.0, "direction": "forward" } },
-        { "action": "idle", "parameters": { "duration": 1.0 } },
-        { "action": "turn", "parameters": { "target_yaw": 90.0, "direction": "ccw", "speed": 20.0 } },
-        { "action": "idle", "parameters": { "duration": 1.0 } },
-        { "action": "move_straight", "parameters": { "distance": 1.0, "direction": "forward", "speed": 0.3 } },
-        { "action": "idle", "parameters": { "duration": 1.0 } },
-        { "action": "turn", "parameters": { "target_yaw": 0.0, "direction": "cw", "speed": 20.0 } },
-        { "action": "idle", "parameters": { "duration": 1.0 } },
+        {"action": "idle", "parameters": { "duration": 0.5 } },
+        {"action": "turn", "parameters": { "target_yaw": 0.0, "direction": "auto", "speed": 30.0 } },
+        {"action": "idle", "parameters": { "duration": 0.5 } },
+        { "action": "move_straight", "parameters": { "distance": 1.0, "direction": "forward", "speed": 0.35 } },
+        { "action": "idle", "parameters": { "duration": 0.5 } },
+        { "action": "turn", "parameters": { "target_yaw": 90.0, "direction": "ccw", "speed": 35.0 } },
+        { "action": "idle", "parameters": { "duration": 0.5 } },
+        { "action": "move_straight", "parameters": { "distance": 1.0, "direction": "forward", "speed": 0.35 } },
+        { "action": "idle", "parameters": { "duration": 0.5 } },
+        { "action": "turn", "parameters": { "target_yaw": 0.0, "direction": "cw", "speed": 35.0 } },
+        { "action": "idle", "parameters": { "duration": 0.5 } },
         { "action": "move_straight", "parameters": { "distance": 1.0, "direction": "backward", "speed": 0.3 } }
       ]
     }

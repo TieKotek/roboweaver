@@ -19,7 +19,9 @@
         <geom
           type="sphere"
           size="0.02"
-          friction="0.005 0.0005 0.00005"
+          friction="0.003 0.0005 0.00005"
+          solimp="0.75 0.92 0.001"
+          solref="0.03 1"
         />
       </default>
     </default>
@@ -41,35 +43,45 @@
   <worldbody>
     <body name="base_link" pos="0 0 0.2">
       <freejoint/>
+      <inertial pos="-0.018 0 -0.04" mass="24" diaginertia="0.8 0.6 0.9"/>
       <geom mesh="base_link" class="visual" material="dark"/>
-      <geom mesh="base_link" type="mesh" group="1"/>
+      <geom name="chassis_collision" type="box" pos="-0.01 0 -0.04" size="0.22 0.20 0.04" group="1" rgba="0 0 0 0"/>
+      <geom mesh="base_link" type="mesh" group="1" contype="0" conaffinity="0"/>
 
       <!-- Drive Wheels (The primary contact points) -->
       <body name="right_link" pos="-0.018818 -0.2537 -0.0905" quat="0.7071068 -0.7071068 0 0">
-        <joint name="right_joint" axis="0 0 1" damping="0.1" armature="0.01"/>
+        <joint name="right_joint" axis="0 0 1" damping="0.2" armature="0.02"/>
         <geom mesh="right_link" class="visual"/>
         <geom class="wheel" rgba="1 0 0 0"/> 
       </body>
       <body name="left_link" pos="-0.018818 0.2537 -0.0905" quat="0.7071068 0.7071068 0 0">
-        <joint name="left_joint" axis="0 0 1" damping="0.1" armature="0.01"/>
+        <joint name="left_joint" axis="0 0 1" damping="0.2" armature="0.02"/>
         <geom mesh="left_Link" class="visual"/>
         <geom class="wheel" rgba="1 0 0 0"/>
       </body>
 
-      <!-- Casters: All raised by 1mm to ensure traction while providing balance -->
-      <body name="right_front_link" pos="0.23918 -0.1977 -0.1545">
+      <!-- Casters: same nominal contact plane as drive wheels, but vertically compliant -->
+      <body name="right_front_link" pos="0.23918 -0.1977 -0.1555">
+        <inertial pos="0 0 0" mass="0.05" diaginertia="0.00002 0.00002 0.00002"/>
+        <joint name="right_front_slide" type="slide" axis="0 0 1" range="0 0.01" stiffness="1500" damping="80"/>
         <geom mesh="right_front_link" pos="0 0 0.0965" quat="0 1 0 0" class="visual"/>
         <geom class="caster" rgba="0 1 0 0"/>
       </body>
-      <body name="right_rear_link" pos="-0.27082 -0.183 -0.1545">
+      <body name="right_rear_link" pos="-0.27082 -0.183 -0.1555">
+        <inertial pos="0 0 0" mass="0.05" diaginertia="0.00002 0.00002 0.00002"/>
+        <joint name="right_rear_slide" type="slide" axis="0 0 1" range="0 0.01" stiffness="1500" damping="80"/>
         <geom mesh="right_rear_link" pos="0 0 0.0965" quat="0 1 0 0" class="visual"/>
         <geom class="caster" rgba="0 1 0 0"/>
       </body>
-      <body name="left_front_link" pos="0.23918 0.1977 -0.1545">
+      <body name="left_front_link" pos="0.23918 0.1977 -0.1555">
+        <inertial pos="0 0 0" mass="0.05" diaginertia="0.00002 0.00002 0.00002"/>
+        <joint name="left_front_slide" type="slide" axis="0 0 1" range="0 0.01" stiffness="1500" damping="80"/>
         <geom mesh="left_front_link" pos="0 0 0.0965" class="visual"/>
         <geom class="caster" rgba="0 1 0 0"/>
       </body>
-      <body name="left_rear_link" pos="-0.27077 0.18305 -0.1545">
+      <body name="left_rear_link" pos="-0.27077 0.18305 -0.1555">
+        <inertial pos="0 0 0" mass="0.05" diaginertia="0.00002 0.00002 0.00002"/>
+        <joint name="left_rear_slide" type="slide" axis="0 0 1" range="0 0.01" stiffness="1500" damping="80"/>
         <geom mesh="left_rear_link" pos="0 0 0.0965" class="visual"/>
         <geom class="caster" rgba="0 1 0 0"/>
       </body>
@@ -77,7 +89,7 @@
   </worldbody>
 
   <actuator>
-    <velocity name="right_drive" joint="right_joint" kv="40" ctrlrange="-16 16"/>
-    <velocity name="left_drive" joint="left_joint" kv="40" ctrlrange="-16 16"/>
+    <velocity name="right_drive" joint="right_joint" kv="55" ctrlrange="-18 18"/>
+    <velocity name="left_drive" joint="left_joint" kv="55" ctrlrange="-18 18"/>
   </actuator>
 </mujoco>
