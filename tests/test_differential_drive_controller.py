@@ -455,6 +455,56 @@ class DifferentialDriveProfileTests(unittest.TestCase):
         visual_bottom = visual_z + min_z
         self.assertLessEqual(visual_bottom - support_top, 0.004)
 
+    def test_mobile_base_speed_limits_stay_below_model_theoretical_limits(self):
+        cases = [
+            (
+                "robots/rbtheron_control/rbtheron/rbtheron.xml",
+                RbtheronController,
+                ("left_wheel_vel", "right_wheel_vel"),
+            ),
+            (
+                "robots/tracer_control/agilex_tracer2/tracer2.xml",
+                TracerController,
+                ("left_drive", "right_drive"),
+            ),
+        ]
+
+        for xml_path, controller_cls, actuator_names in cases:
+            root = ET.parse(xml_path).getroot()
+            actuator_limits = []
+            for actuator_name in actuator_names:
+                actuator = root.find(f".//actuator/velocity[@name='{actuator_name}']")
+                self.assertIsNotNone(actuator)
+                ctrl_min, ctrl_max = [float(value) for value in actuator.attrib["ctrlrange"].split()]
+                actuator_limits.append(min(abs(ctrl_min), abs(ctrl_max)))
+
+            max_joint_rad_s = min(actuator_limits)
+            max_linear_speed = max_joint_rad_s * controller_cls.WHEEL_RADIUS
+            max_angular_speed_deg = math.degrees((2.0 * max_linear_speed) / controller_cls.WHEEL_TRACK)
+
+            self.assertLessEqual(controller_cls.MAX_LINEAR_SPEED, max_linear_speed + 1e-6)
+            self.assertLessEqual(controller_cls.MAX_ANGULAR_SPEED_DEG, max_angular_speed_deg + 1e-6)
+
+    def test_warning_and_clamp_use_safe_speed_limits_for_linear_motion(self):
+        ctrl = FakeMotionDrive()
+        ctrl.left_id = 0
+        ctrl.right_id = 1
+        ctrl.body_id = 2
+        ctrl.model = SimpleNamespace(
+            actuator_ctrlrange=np.array([[-4.0, 4.0], [-4.0, 4.0]], dtype=float),
+            actuator_gear=np.array([[1.0, 0.0, 0.0], [1.0, 0.0, 0.0]], dtype=float),
+        )
+        ctrl._refresh_safe_speed_limits()
+        buf = io.StringIO()
+
+        with redirect_stdout(buf):
+            ctrl.action_move_straight(distance=0.25, direction="forward", speed=0.8)
+
+        output = buf.getvalue()
+        self.assertIn("exceeds safe maximum", output)
+        self.assertIn(f"Clamping to {ctrl.safe_linear_speed:.2f}", output)
+        self.assertIn(f"at {ctrl.safe_linear_speed:.2f}m/s", output)
+
 
 if __name__ == "__main__":
     unittest.main()

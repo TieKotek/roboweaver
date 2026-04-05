@@ -38,19 +38,22 @@
                 {
                     "action": "move_base",
                     "parameters": {
-                        "distance": 0.5
+                        "distance": 0.5,
+                        "speed": 0.08
                     }
                 },
                 {
                     "action": "rotate_base",
                     "parameters": {
-                        "angle_deg": 90.0
+                        "angle_deg": 90.0,
+                        "speed": 20.0
                     }
                 },
                 {
                     "action": "rotate_base",
                     "parameters": {
-                        "angle_deg": -90.0
+                        "angle_deg": -90.0,
+                        "speed": 20.0
                     }
                 },
                 {
@@ -70,6 +73,12 @@
                         "ee_speed": 0.2
                     },
                     "description": "精确移动到距离中心0.5m，高度0.3m的位置"
+                },
+                {
+                    "action": "open_gripper"
+                },
+                {
+                    "action": "close_gripper"
                 },
                 {
                     "action": "home"

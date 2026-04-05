@@ -9,6 +9,8 @@ class TracerController(DifferentialDriveController):
     # Keep these in sync with robots/tracer_control/agilex_tracer2/tracer2.xml.
     WHEEL_RADIUS = 0.085
     WHEEL_TRACK = 0.5074
+    # User-facing caps stay conservative; runtime safe limits may clamp further
+    # based on actuator capability * SAFETY_SPEED_FACTOR in the shared base class.
     DEFAULT_LINEAR_SPEED = 0.35
     MAX_LINEAR_SPEED = 0.45
     DEFAULT_ANGULAR_SPEED_DEG = 30.0

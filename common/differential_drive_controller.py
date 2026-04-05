@@ -18,6 +18,7 @@ class DifferentialDriveState(RobotState):
 class DifferentialDriveController(BaseRobotController):
     """Shared differential-drive base controller."""
 
+    SAFETY_SPEED_FACTOR = 0.8
     WHEEL_RADIUS = 0.1
     WHEEL_TRACK = 0.5
     DEFAULT_LINEAR_SPEED = 0.5
@@ -54,8 +55,11 @@ class DifferentialDriveController(BaseRobotController):
         self.left_id = -1
         self.right_id = -1
         self.body_id = -1
+        self.safe_linear_speed = float(self.MAX_LINEAR_SPEED)
+        self.safe_angular_speed_deg = float(self.MAX_ANGULAR_SPEED_DEG)
         if self.left_actuator_name and self.right_actuator_name and self.base_body_name:
             self._lookup_handles()
+            self._refresh_safe_speed_limits()
 
     def _lookup_handles(self):
         """Resolve MuJoCo ids for the configured actuators and base body."""
@@ -71,6 +75,34 @@ class DifferentialDriveController(BaseRobotController):
         self.body_id = mujoco.mj_name2id(
             self.model, mujoco.mjtObj.mjOBJ_BODY, self.base_body_name
         )
+
+    def _refresh_safe_speed_limits(self):
+        theoretical_linear = self._theoretical_linear_speed_limit()
+        if theoretical_linear is None:
+            self.safe_linear_speed = float(self.MAX_LINEAR_SPEED)
+            self.safe_angular_speed_deg = float(self.MAX_ANGULAR_SPEED_DEG)
+            return
+
+        safe_linear = theoretical_linear * float(self.SAFETY_SPEED_FACTOR)
+        safe_angular_deg = math.degrees((2.0 * safe_linear) / float(self.WHEEL_TRACK))
+        self.safe_linear_speed = min(float(self.MAX_LINEAR_SPEED), safe_linear)
+        self.safe_angular_speed_deg = min(float(self.MAX_ANGULAR_SPEED_DEG), safe_angular_deg)
+
+    def _theoretical_linear_speed_limit(self) -> Optional[float]:
+        if self.model is None:
+            return None
+
+        actuator_limits = []
+        for actuator_id in (self.left_id, self.right_id):
+            if actuator_id is None or actuator_id < 0:
+                return None
+            ctrl_limit = max(abs(float(value)) for value in self.model.actuator_ctrlrange[actuator_id])
+            gear = abs(float(self.model.actuator_gear[actuator_id, 0]))
+            if gear <= 0.0:
+                gear = 1.0
+            actuator_limits.append(ctrl_limit / gear)
+
+        return min(actuator_limits) * float(self.WHEEL_RADIUS)
 
     def _require_motion_handles(self):
         missing = []
@@ -127,7 +159,7 @@ class DifferentialDriveController(BaseRobotController):
             return float(min_val)
         if speed > max_val:
             msg = (
-                f"[{self.robot_name}] Warning: {label} speed {speed} exceeds maximum {max_val}. "
+                f"[{self.robot_name}] Warning: {label} speed {speed} exceeds safe maximum {max_val}. "
                 f"Clamping to {max_val}."
             )
             print(msg)
@@ -136,10 +168,12 @@ class DifferentialDriveController(BaseRobotController):
         return float(speed)
 
     def _clamp_linear_speed(self, speed: float) -> float:
-        return self._clamp_speed(speed, 0.01, self.MAX_LINEAR_SPEED, "Linear")
+        max_speed = getattr(self, "safe_linear_speed", float(self.MAX_LINEAR_SPEED))
+        return self._clamp_speed(speed, 0.01, max_speed, "Linear")
 
     def _clamp_angular_speed_deg(self, speed_deg: float) -> float:
-        return self._clamp_speed(speed_deg, 1.0, self.MAX_ANGULAR_SPEED_DEG, "Angular")
+        max_speed = getattr(self, "safe_angular_speed_deg", float(self.MAX_ANGULAR_SPEED_DEG))
+        return self._clamp_speed(speed_deg, 1.0, max_speed, "Angular")
 
     def _build_linear_profile(self, distance: float, speed: float) -> Dict[str, float]:
         distance = abs(float(distance))

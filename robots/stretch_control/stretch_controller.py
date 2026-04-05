@@ -1,447 +1,570 @@
-import numpy as np
-import mujoco
+import math
 import time
-from scipy.spatial.transform import Rotation as R
-from typing import Optional, Tuple, List, Dict, Any
-from common.robot_api import BaseRobotController, RobotState
 from dataclasses import dataclass
+from typing import Dict
+
+import mujoco
+import numpy as np
+
+from common.robot_api import BaseRobotController, RobotState
+
 
 @dataclass
 class StretchState(RobotState):
-    base_pose: np.ndarray = None # [x, y, yaw]
-    arm_status: np.ndarray = None # [lift, extend, wrist_pitch, wrist_roll]
+    base_pose: np.ndarray = None  # [x, y, yaw]
+    arm_status: np.ndarray = None  # [lift, extend, wrist_pitch, wrist_roll]
     gripper_pos: float = 0.0
-    ee_pos: np.ndarray = None # [x, y, z] in world frame
+    ee_pos: np.ndarray = None  # [x, y, z] in world frame
+
 
 class StretchController(BaseRobotController):
-    """
-    Controller for the Hello Robot Stretch 3.
-    """
-    def __init__(self, model: mujoco.MjModel, data: mujoco.MjData, robot_name: str = "stretch", base_pos: np.ndarray = None, base_quat: np.ndarray = None, log_dir: str = None, **kwargs):
+    """Controller for the Hello Robot Stretch 3."""
+
+    # Base speed caps are conservative user-facing limits. Runtime safe limits
+    # are derived from wheel actuator capability * SAFETY_SPEED_FACTOR.
+    SAFETY_SPEED_FACTOR = 0.8
+    DEFAULT_LINEAR_SPEED = 0.08
+    MAX_LINEAR_SPEED = 0.10
+    DEFAULT_ANGULAR_SPEED_DEG = 20.0
+    MAX_ANGULAR_SPEED_DEG = 27.0
+    LINEAR_ACCEL = 0.25
+    ANGULAR_ACCEL_DEG = 60.0
+    TURN_KP = 0.35
+    LINEAR_DISTANCE_TOLERANCE = 0.025
+    HEADING_TOLERANCE_DEG = 2.5
+    MAX_COMPLETION_OVERRUN = 4.0
+    LINEAR_SETTLE_SPEED = 0.03
+    ANGULAR_SETTLE_SPEED_DEG = 3.0
+    WHEEL_RADIUS = 0.05
+    WHEEL_TRACK = 0.3407
+    WHEEL_GEAR = 3.0
+    GRIPPER_MOVE_DURATION = 2.0
+    MIN_EE_SPEED = 0.01
+    MAX_EE_SPEED = 0.30
+    DEFAULT_EE_SPEED = 0.10
+
+    def __init__(
+        self,
+        model: mujoco.MjModel,
+        data: mujoco.MjData,
+        robot_name: str = "stretch",
+        base_pos: np.ndarray = None,
+        base_quat: np.ndarray = None,
+        log_dir: str = None,
+        **kwargs,
+    ):
         super().__init__(model, data, robot_name, base_pos, base_quat, log_dir)
-        
-        # 1. Identify Actuators
-        # Note: Stretch 3 uses velocity control for wheels and position control for others.
+
         self.actuator_names = [
-            "left_wheel_vel", "right_wheel_vel", "lift", "arm", 
-            "wrist_yaw", "wrist_pitch", "wrist_roll", "gripper", 
-            "head_pan", "head_tilt"
+            "left_wheel_vel",
+            "right_wheel_vel",
+            "lift",
+            "arm",
+            "wrist_yaw",
+            "wrist_pitch",
+            "wrist_roll",
+            "gripper",
+            "head_pan",
+            "head_tilt",
         ]
         self.act_ids = {}
         for name in self.actuator_names:
             full_name = f"{robot_name}_{name}" if robot_name else name
             aid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, full_name)
-            if aid == -1: aid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, name)
+            if aid == -1:
+                aid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, name)
             self.act_ids[name] = aid
 
-        # 2. Identify Bodies and Joints with prefix support
         def get_id(name, obj_type):
             full_name = f"{robot_name}_{name}" if robot_name else name
             oid = mujoco.mj_name2id(model, obj_type, full_name)
-            if oid == -1: oid = mujoco.mj_name2id(model, obj_type, name)
+            if oid == -1:
+                oid = mujoco.mj_name2id(model, obj_type, name)
             return oid
 
         self.body_id = get_id("base_link", mujoco.mjtObj.mjOBJ_BODY)
         self.ee_id = get_id("link_grasp_center", mujoco.mjtObj.mjOBJ_BODY)
         self.gripper_joint_id = get_id("joint_gripper_slide", mujoco.mjtObj.mjOBJ_JOINT)
-        
+
         if self.ee_id == -1:
             print(f"[{self.robot_name}] WARNING: 'link_grasp_center' not found. ee_pos will be inaccurate.")
 
-        # 2. Capture Initial State as 'Home' Pose
-        # This captures whatever state the model was in when loaded (e.g., from XML or keyframe)
         self.home_ctrl = {}
         for name, aid in self.act_ids.items():
             if aid != -1:
                 self.home_ctrl[name] = self.data.ctrl[aid]
-        
-        # 3. Default Speeds & Home Pose
-        self.move_speed = 1.0 
-        self.rotate_speed = 1.0
-        self.ee_speed = 0.1    # Default end-effector speed in m/s
-        self.home_pose = [0.6, 0.1, 0.0, 0.0] # lift, extend, pitch, roll
-        
-        # 4. Initialize State (Force qpos to match ctrl for "Instant Load")
+
+        self.ee_speed = self.DEFAULT_EE_SPEED
+        self.home_pose = [0.6, 0.1, 0.0, 0.0]
+        self.safe_linear_speed = float(self.MAX_LINEAR_SPEED)
+        self.safe_angular_speed_deg = float(self.MAX_ANGULAR_SPEED_DEG)
+
         full_key_name = f"{self.robot_name}_home" if self.robot_name else "home"
         key_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_KEY, full_key_name)
-        
-        # Fallback to unprefixed 'home' if prefixed not found (for standalone use)
         if key_id == -1:
             key_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_KEY, "home")
-        
-        # Determine target values
+
         targets = {}
         if key_id != -1:
-            # Get targets from keyframe
-            # Use relative index because keyframes in merged XMLs might be padded with zeros at the end,
-            # putting this robot's local keyframe values at the beginning of the global key_ctrl vector.
             for i, name in enumerate(self.actuator_names):
                 aid = self.act_ids.get(name, -1)
                 if aid != -1:
                     targets[name] = self.model.key_ctrl[key_id, i]
         else:
-            # Manual defaults
             targets = {"lift": 0.6, "arm": 0.1, "wrist_yaw": 0.0, "wrist_pitch": 0.0, "wrist_roll": 0.0}
 
-        # Apply to BOTH ctrl and qpos
         for name, val in targets.items():
             aid = self.act_ids.get(name, -1)
-            if aid == -1: continue
-            
-            # Set control target
+            if aid == -1:
+                continue
+
             self.data.ctrl[aid] = val
-            
-            # Set physical position (qpos)
             trn_type = self.model.actuator_trntype[aid]
             joint_id = self.model.actuator_trnid[aid, 0]
-            
+
             if trn_type == mujoco.mjtTrn.mjTRN_JOINT:
                 qpos_addr = self.model.jnt_qposadr[joint_id]
                 self.data.qpos[qpos_addr] = val
             elif trn_type == mujoco.mjtTrn.mjTRN_TENDON:
-                # Arm extension distribution
                 for i in range(4):
                     j_name = f"joint_arm_l{i}"
                     jid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, j_name)
                     if jid != -1:
                         self.data.qpos[self.model.jnt_qposadr[jid]] = val / 4.0
-        
+
         mujoco.mj_forward(model, self.data)
+        self._refresh_safe_speed_limits()
         print(f"[{self.robot_name}] Initial state locked (Keyframe: {key_id != -1}).")
 
     def get_robot_state(self) -> StretchState:
-        pos = self.data.xpos[self.body_id]
-        quat = self.data.xquat[self.body_id]
-        w, x, y, z = quat
-        yaw = np.arctan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
-        
-        # Get control values for status
-        lift = self.data.ctrl[self.act_ids["lift"]] if self.act_ids["lift"] != -1 else 0
-        arm = self.data.ctrl[self.act_ids["arm"]] if self.act_ids["arm"] != -1 else 0
-        pitch = self.data.ctrl[self.act_ids["wrist_pitch"]] if self.act_ids["wrist_pitch"] != -1 else 0
-        roll = self.data.ctrl[self.act_ids["wrist_roll"]] if self.act_ids["wrist_roll"] != -1 else 0
-        
-        g_pos = 0.0
+        x, y, yaw = self._get_base_pose()
+        lift = self.data.ctrl[self.act_ids["lift"]] if self.act_ids["lift"] != -1 else 0.0
+        arm = self.data.ctrl[self.act_ids["arm"]] if self.act_ids["arm"] != -1 else 0.0
+        pitch = self.data.ctrl[self.act_ids["wrist_pitch"]] if self.act_ids["wrist_pitch"] != -1 else 0.0
+        roll = self.data.ctrl[self.act_ids["wrist_roll"]] if self.act_ids["wrist_roll"] != -1 else 0.0
+
+        gripper_pos = 0.0
         if self.gripper_joint_id != -1:
-            g_pos = self.data.qpos[self.model.jnt_qposadr[self.gripper_joint_id]]
+            gripper_pos = self.data.qpos[self.model.jnt_qposadr[self.gripper_joint_id]]
 
         ee_pos = self.data.xpos[self.ee_id].copy() if self.ee_id != -1 else np.zeros(3)
 
         return StretchState(
             timestamp=self.data.time,
-            base_pose=np.array([pos[0], pos[1], yaw]),
-            arm_status=np.array([lift, arm, pitch, roll]),
-            gripper_pos=g_pos,
-            ee_pos=ee_pos
+            base_pose=np.array([x, y, yaw], dtype=float),
+            arm_status=np.array([lift, arm, pitch, roll], dtype=float),
+            gripper_pos=float(gripper_pos),
+            ee_pos=ee_pos,
         )
 
-    def action_move_base(self, distance: float, speed: float = 5.0):
-        if self.emergency_stop_flag: return
-        print(f"[{self.robot_name}] Moving base {distance}m...")
-        start_pos = self.data.xpos[self.body_id].copy()
-        direction = np.sign(distance)
-        abs_dist = abs(distance)
-        sim_start_time = self.data.time
-        step = 0
-        
-        # Velocity control for base
-        while True:
-            if self.emergency_stop_flag: break
-            curr_pos = self.data.xpos[self.body_id]
-            if np.linalg.norm(curr_pos[:2] - start_pos[:2]) >= abs_dist: break
-            
-            # Differential drive velocity (simplified forward)
-            v = direction * speed
-            self._update_ctrl_dict({"left_wheel_vel": v, "right_wheel_vel": v})
-            
-            step += 1
-            self._sync_sim(sim_start_time, step)
-            
-        self._update_ctrl_dict({"left_wheel_vel": 0.0, "right_wheel_vel": 0.0})
-        self._wait_for_base_stop()
+    def action_move_base(self, distance: float, speed: float = None):
+        if self.emergency_stop_flag:
+            return
+        target_speed = self._resolve_linear_speed(speed)
+        profile = self._build_trapezoidal_profile(abs(float(distance)), target_speed, self.LINEAR_ACCEL)
+        print(
+            f"[{self.robot_name}] Moving base {distance:.2f}m at {target_speed:.2f}m/s "
+            f"(Traj Duration: {profile['duration']:.2f}s)..."
+        )
+        self._execute_base_profile(profile, mode="linear", direction=self._sign(distance), target_value=float(distance))
 
-    def action_rotate_base(self, angle_deg: float, speed: float = 5.0):
-        if self.emergency_stop_flag: return
-        print(f"[{self.robot_name}] Rotating base {angle_deg} deg...")
-        target_rad = np.deg2rad(angle_deg)
-        _, _, start_yaw = self._get_base_pose()
-        accumulated = 0.0
-        last_yaw = start_yaw
-        direction = np.sign(angle_deg)
-        sim_start_time = self.data.time
-        step = 0
-        
-        while abs(accumulated) < abs(target_rad):
-            if self.emergency_stop_flag: break
-            _, _, curr_yaw = self._get_base_pose()
-            diff = (curr_yaw - last_yaw + np.pi) % (2 * np.pi) - np.pi
-            accumulated += diff
-            last_yaw = curr_yaw
-            
-            # Rotation: wheels move in opposite directions
-            v_l = -direction * speed
-            v_r = direction * speed
-            self._update_ctrl_dict({"left_wheel_vel": v_l, "right_wheel_vel": v_r})
-            
-            step += 1
-            self._sync_sim(sim_start_time, step)
-            
-        self._update_ctrl_dict({"left_wheel_vel": 0.0, "right_wheel_vel": 0.0})
-        self._wait_for_base_stop()
+    def action_rotate_base(self, angle_deg: float, speed: float = None):
+        if self.emergency_stop_flag:
+            return
+        target_speed_deg = self._resolve_angular_speed(speed)
+        profile = self._build_trapezoidal_profile(
+            abs(math.radians(float(angle_deg))),
+            math.radians(target_speed_deg),
+            math.radians(self.ANGULAR_ACCEL_DEG),
+        )
+        print(
+            f"[{self.robot_name}] Rotating base {angle_deg:.2f} deg at {target_speed_deg:.2f}deg/s "
+            f"(Traj Duration: {profile['duration']:.2f}s)..."
+        )
+        self._execute_base_profile(
+            profile,
+            mode="angular",
+            direction=self._sign(angle_deg),
+            target_value=math.radians(float(angle_deg)),
+        )
 
     def action_open_gripper(self):
-        # Stretch 3 gripper range: -0.02 to 0.04
-        self._move_gripper(0.04)
+        self.action_move_gripper(0.04)
 
     def action_close_gripper(self):
-        self._move_gripper(-0.01)
+        self.action_move_gripper(-0.01)
 
     def action_move_gripper(self, position: float):
-        """Flexible gripper control."""
-        # Clamp to physical limits
-        pos = max(-0.02, min(0.04, position))
-        self._move_gripper(pos)
+        target = max(-0.02, min(0.04, float(position)))
+        print(
+            f"[{self.robot_name}] Moving gripper to {target:.3f} "
+            f"(Traj Duration: {self.GRIPPER_MOVE_DURATION:.2f}s)..."
+        )
+        self._execute_gripper_move(target, self.GRIPPER_MOVE_DURATION)
 
     def action_move_arm(self, lift: float, arm: float, ee_speed: float = None):
-        """
-        Move end-effector in a straight line at constant velocity.
-        lift: target height (m) [0.0 - 1.1]
-        arm: target extension (m) [0.0 - 0.52]
-        ee_speed: combined end-effector speed in m/s (safe range: 0.01 - 0.3)
-        """
-        if self.emergency_stop_flag: return
-        
-        # 1. Target Clamping
-        target_lift = max(0.0, min(1.1, lift))
-        target_arm = max(0.0, min(0.52, arm))
-        
-        # 2. Get Current Positions
+        if self.emergency_stop_flag:
+            return
+
+        target_lift = max(0.0, min(1.1, float(lift)))
+        target_arm = max(0.0, min(0.52, float(arm)))
         start_lift = self.data.ctrl[self.act_ids["lift"]]
-        start_ext = self.data.ctrl[self.act_ids["arm"]]
-        
-        # 3. Calculate Euclidean Distance
-        dist = np.sqrt((target_lift - start_lift)**2 + (target_arm - start_ext)**2)
-        
-        if dist < 0.001:
+        start_arm = self.data.ctrl[self.act_ids["arm"]]
+        distance = float(np.hypot(target_lift - start_lift, target_arm - start_arm))
+        if distance < 0.001:
             self._update_ctrl_dict({"lift": target_lift, "arm": target_arm})
             return
 
-        # 4. Determine and Validate Speed
-        speed = ee_speed if ee_speed is not None else self.ee_speed
-        min_s, max_s = 0.01, 0.3
-        if not (min_s <= speed <= max_s):
-            print(f"[{self.robot_name}] WARNING: ee_speed {speed} is outside safe range [{min_s}, {max_s}]. Clamping.")
-            speed = max(min_s, min(max_s, speed))
-
-        # 5. Calculate Duration
-        duration = dist / speed
-
-        print(f"[{self.robot_name}] Moving arm: ({start_lift:.2f}, {start_ext:.2f}) -> ({target_lift:.2f}, {target_arm:.2f}) at {speed:.2f} m/s (duration={duration:.2f}s)")
-        self._linear_move_arm(target_lift, target_arm, duration)
+        speed = self._resolve_ee_speed(ee_speed)
+        duration = max(self.control_dt, distance / speed)
+        print(
+            f"[{self.robot_name}] Moving arm: ({start_lift:.2f}, {start_arm:.2f}) -> "
+            f"({target_lift:.2f}, {target_arm:.2f}) at {speed:.2f}m/s "
+            f"(Traj Duration: {duration:.2f}s)..."
+        )
+        self._execute_arm_trajectory(target_lift, target_arm, duration)
 
     def action_move_ee(self, reach: float, height: float, ee_speed: float = None):
-        """
-        Precisely move end-effector to target reach and height.
-        reach: horizontal distance from base center (m) [0.5 - 0.9]
-        height: vertical distance from ground (m) [0.3 - 1.0]
-        ee_speed: constant velocity in m/s [0.01 - 0.3]
-        """
-        if self.emergency_stop_flag: return
+        if self.emergency_stop_flag:
+            return
 
-        # 1. Validate and Clamp Inputs
-        r_range = (0.5, 0.9)
-        h_range = (0.3, 1.05)
-        s_range = (0.01, 0.3)
+        target_r = max(0.5, min(0.9, float(reach)))
+        target_h = max(0.3, min(1.05, float(height)))
+        speed = self._resolve_ee_speed(ee_speed)
 
-        target_r = max(r_range[0], min(r_range[1], reach))
-        target_h = max(h_range[0], min(h_range[1], height))
-        speed = max(s_range[0], min(s_range[1], ee_speed if ee_speed is not None else self.ee_speed))
+        if target_r != reach:
+            print(f"[{self.robot_name}] Reach {reach} clamped to {target_r}")
+        if target_h != height:
+            print(f"[{self.robot_name}] Height {height} clamped to {target_h}")
 
-        if target_r != reach: print(f"[{self.robot_name}] Reach {reach} clamped to {target_r}")
-        if target_h != height: print(f"[{self.robot_name}] Height {height} clamped to {target_h}")
-
-        # 2. Solve for (lift, arm) using Numerical IK
         t_lift, t_arm = self._solve_ik_2d(target_r, target_h)
-        
-        # 3. Execute linear move
-        # Calculate Euclidean distance in Reach-Height space for timing
         state = self.get_robot_state()
         curr_base_pos = self.data.xpos[self.body_id]
         curr_r = np.linalg.norm(state.ee_pos[:2] - curr_base_pos[:2])
         curr_h = state.ee_pos[2] - curr_base_pos[2]
-        dist = np.sqrt((target_r - curr_r)**2 + (target_h - curr_h)**2)
-        
+        dist = float(np.hypot(target_r - curr_r, target_h - curr_h))
+
         if dist < 0.001:
             self._update_ctrl_dict({"lift": t_lift, "arm": t_arm})
             return
 
-        duration = dist / speed
-        print(f"[{self.robot_name}] EE Move: Reach {curr_r:.3f}->{target_r:.3f}, Height {curr_h:.3f}->{target_h:.3f} (duration={duration:.2f}s)")
-        self._linear_move_arm(t_lift, t_arm, duration)
+        duration = max(self.control_dt, dist / speed)
+        print(
+            f"[{self.robot_name}] Moving EE to reach={target_r:.3f}, height={target_h:.3f} "
+            f"at {speed:.2f}m/s (Traj Duration: {duration:.2f}s)..."
+        )
+        self._execute_arm_trajectory(t_lift, t_arm, duration)
 
     def action_home(self):
         print(f"[{self.robot_name}] Homing (Stretch 3)...")
-        # Reset head and wrist
-        self._update_ctrl_dict({
-            "wrist_yaw": 0.0, 
-            "wrist_pitch": 0.0, 
-            "wrist_roll": 0.0,
-            "head_pan": 0.0,
-            "head_tilt": 0.0
-        })
-        # Move to home pose with default ee_speed
+        self._update_ctrl_dict(
+            {
+                "wrist_yaw": 0.0,
+                "wrist_pitch": 0.0,
+                "wrist_roll": 0.0,
+                "head_pan": 0.0,
+                "head_tilt": 0.0,
+            }
+        )
         self.action_move_arm(self.home_pose[0], self.home_pose[1])
 
-    # --- Internal Helpers ---
+    def _resolve_linear_speed(self, speed: float) -> float:
+        value = self.DEFAULT_LINEAR_SPEED if speed is None else float(speed)
+        return self._clamp_speed(value, 0.01, self.safe_linear_speed, "linear")
+
+    def _resolve_angular_speed(self, speed_deg: float) -> float:
+        value = self.DEFAULT_ANGULAR_SPEED_DEG if speed_deg is None else float(speed_deg)
+        return self._clamp_speed(value, 1.0, self.safe_angular_speed_deg, "angular")
+
+    def _resolve_ee_speed(self, speed: float) -> float:
+        value = self.DEFAULT_EE_SPEED if speed is None else float(speed)
+        return self._clamp_speed(value, self.MIN_EE_SPEED, self.MAX_EE_SPEED, "ee")
+
+    def _clamp_speed(self, speed: float, min_speed: float, max_speed: float, label: str) -> float:
+        if speed < min_speed:
+            print(f"[{self.robot_name}] WARNING: {label} speed {speed} below {min_speed}, clamping.")
+            return float(min_speed)
+        if speed > max_speed:
+            print(f"[{self.robot_name}] WARNING: {label} speed {speed} exceeds safe maximum {max_speed}, Clamping to {max_speed}.")
+            return float(max_speed)
+        return float(speed)
+
+    def _refresh_safe_speed_limits(self):
+        left_id = self.act_ids.get("left_wheel_vel", -1)
+        right_id = self.act_ids.get("right_wheel_vel", -1)
+        if self.model is None or left_id == -1 or right_id == -1:
+            self.safe_linear_speed = float(self.MAX_LINEAR_SPEED)
+            self.safe_angular_speed_deg = float(self.MAX_ANGULAR_SPEED_DEG)
+            return
+
+        actuator_limits = []
+        for actuator_id in (left_id, right_id):
+            ctrl_limit = max(abs(float(value)) for value in self.model.actuator_ctrlrange[actuator_id])
+            gear = abs(float(self.model.actuator_gear[actuator_id, 0]))
+            if gear <= 0.0:
+                gear = 1.0
+            actuator_limits.append(ctrl_limit / gear)
+
+        theoretical_linear = min(actuator_limits) * float(self.WHEEL_RADIUS)
+        safe_linear = theoretical_linear * float(self.SAFETY_SPEED_FACTOR)
+        safe_angular_deg = math.degrees((2.0 * safe_linear) / float(self.WHEEL_TRACK))
+        self.safe_linear_speed = min(float(self.MAX_LINEAR_SPEED), safe_linear)
+        self.safe_angular_speed_deg = min(float(self.MAX_ANGULAR_SPEED_DEG), safe_angular_deg)
+
+    def _build_trapezoidal_profile(self, distance: float, peak_speed: float, accel: float) -> Dict[str, float]:
+        distance = abs(float(distance))
+        accel = abs(float(accel))
+        peak_speed = abs(float(peak_speed))
+
+        if distance == 0.0:
+            return {
+                "distance": 0.0,
+                "accel": accel,
+                "accel_time": 0.0,
+                "accel_distance": 0.0,
+                "cruise_time": 0.0,
+                "peak_speed": 0.0,
+                "duration": 0.0,
+            }
+
+        accel_time = peak_speed / accel
+        accel_distance = 0.5 * accel * accel_time * accel_time
+        if distance < 2.0 * accel_distance:
+            accel_time = math.sqrt(distance / accel)
+            peak_speed = accel * accel_time
+            cruise_time = 0.0
+            duration = 2.0 * accel_time
+            accel_distance = 0.5 * accel * accel_time * accel_time
+        else:
+            cruise_distance = distance - 2.0 * accel_distance
+            cruise_time = cruise_distance / peak_speed
+            duration = 2.0 * accel_time + cruise_time
+
+        return {
+            "distance": distance,
+            "accel": accel,
+            "accel_time": accel_time,
+            "accel_distance": accel_distance,
+            "cruise_time": cruise_time,
+            "peak_speed": peak_speed,
+            "duration": duration,
+        }
+
+    def _sample_profile(self, profile: Dict[str, float], elapsed: float):
+        accel = profile["accel"]
+        accel_time = profile["accel_time"]
+        cruise_time = profile["cruise_time"]
+        duration = profile["duration"]
+        peak_speed = profile["peak_speed"]
+        total = profile["distance"]
+
+        if elapsed <= 0.0:
+            return 0.0, 0.0
+        if elapsed < accel_time:
+            speed = accel * elapsed
+            traveled = 0.5 * accel * elapsed * elapsed
+        elif elapsed < accel_time + cruise_time:
+            speed = peak_speed
+            traveled = profile["accel_distance"] + peak_speed * (elapsed - accel_time)
+        elif elapsed < duration:
+            remaining = duration - elapsed
+            speed = accel * remaining
+            traveled = total - 0.5 * accel * remaining * remaining
+        else:
+            speed = 0.0
+            traveled = total
+        return traveled, speed
+
+    def _execute_base_profile(self, profile: Dict[str, float], mode: str, direction: float, target_value: float):
+        start_x, start_y, start_yaw = self._get_base_pose()
+        sim_start_time = self.data.time
+        last_yaw = start_yaw
+        accumulated_yaw = 0.0
+
+        while True:
+            if self.emergency_stop_flag:
+                break
+
+            elapsed = self.data.time - sim_start_time
+            traveled, speed_now = self._sample_profile(profile, min(elapsed, profile["duration"]))
+
+            if mode == "linear":
+                linear_cmd = direction * speed_now
+                self._command_base_twist(linear_cmd, 0.0)
+                progress = self._measure_linear_progress(start_x, start_y, start_yaw)
+                goal_reached = abs(progress - target_value) <= self.LINEAR_DISTANCE_TOLERANCE
+            else:
+                current_yaw = self._get_base_pose()[2]
+                delta_yaw = self._normalize_angle(current_yaw - last_yaw)
+                accumulated_yaw += delta_yaw
+                last_yaw = current_yaw
+                target_yaw = start_yaw + direction * traveled
+                yaw_error = self._normalize_angle(target_yaw - current_yaw)
+                angular_cmd = direction * speed_now + self.TURN_KP * yaw_error
+                self._command_base_twist(0.0, angular_cmd)
+                progress = accumulated_yaw
+                goal_reached = abs(progress - target_value) <= math.radians(self.HEADING_TOLERANCE_DEG)
+
+            if elapsed >= profile["duration"] and goal_reached and self._base_motion_is_settled():
+                break
+            if elapsed >= profile["duration"] + self.MAX_COMPLETION_OVERRUN:
+                raise RuntimeError(
+                    f"[{self.robot_name}] Base {mode} motion exceeded planned duration by more than "
+                    f"{self.MAX_COMPLETION_OVERRUN:.2f}s."
+                )
+
+            self._sync_sim(sim_start_time, int(round((elapsed + self.control_dt) / self.control_dt)))
+
+        self._command_base_twist(0.0, 0.0)
+
+    def _command_base_twist(self, linear_m_s: float, angular_rad_s: float):
+        half_track = 0.5 * self.WHEEL_TRACK
+        left_linear = linear_m_s - half_track * angular_rad_s
+        right_linear = linear_m_s + half_track * angular_rad_s
+        left_rad_s = left_linear / self.WHEEL_RADIUS
+        right_rad_s = right_linear / self.WHEEL_RADIUS
+        self._update_ctrl_dict(
+            {
+                "left_wheel_vel": left_rad_s * self.WHEEL_GEAR,
+                "right_wheel_vel": right_rad_s * self.WHEEL_GEAR,
+            }
+        )
+
+    def _base_motion_is_settled(self) -> bool:
+        linear_speed, angular_speed = self._get_base_velocity()
+        return (
+            abs(linear_speed) <= self.LINEAR_SETTLE_SPEED
+            and abs(angular_speed) <= math.radians(self.ANGULAR_SETTLE_SPEED_DEG)
+        )
+
+    def _get_base_velocity(self):
+        if self.body_id == -1:
+            return 0.0, 0.0
+        vel = self.data.cvel[self.body_id]
+        linear_speed = float(np.linalg.norm(vel[3:]))
+        angular_speed = float(np.linalg.norm(vel[:3]))
+        return linear_speed, angular_speed
+
+    def _measure_linear_progress(self, start_x: float, start_y: float, start_yaw: float) -> float:
+        current_x, current_y, _ = self._get_base_pose()
+        forward_x = math.cos(start_yaw)
+        forward_y = math.sin(start_yaw)
+        return (current_x - start_x) * forward_x + (current_y - start_y) * forward_y
+
+    def _execute_gripper_move(self, target_pos: float, duration: float):
+        start_ctrl = float(self.data.ctrl[self.act_ids["gripper"]])
+        sim_start_time = self.data.time
+        step = 0
+        while self.data.time - sim_start_time < duration:
+            if self.emergency_stop_flag:
+                break
+            elapsed = self.data.time - sim_start_time
+            alpha = min(1.0, elapsed / duration) if duration > 0.0 else 1.0
+            current = start_ctrl + alpha * (target_pos - start_ctrl)
+            self._update_ctrl_dict({"gripper": current})
+            step += 1
+            self._sync_sim(sim_start_time, step)
+        self._update_ctrl_dict({"gripper": target_pos})
+
+    def _execute_arm_trajectory(self, target_lift: float, target_arm: float, duration: float):
+        start_lift = float(self.data.ctrl[self.act_ids["lift"]])
+        start_arm = float(self.data.ctrl[self.act_ids["arm"]])
+        sim_start_time = self.data.time
+        step = 0
+        while self.data.time - sim_start_time < duration:
+            if self.emergency_stop_flag:
+                break
+            elapsed = self.data.time - sim_start_time
+            alpha = min(1.0, elapsed / duration) if duration > 0.0 else 1.0
+            current_lift = start_lift + alpha * (target_lift - start_lift)
+            current_arm = start_arm + alpha * (target_arm - start_arm)
+            self._update_ctrl_dict({"lift": current_lift, "arm": current_arm})
+            step += 1
+            self._sync_sim(sim_start_time, step)
+        self._update_ctrl_dict({"lift": target_lift, "arm": target_arm})
 
     def _solve_ik_2d(self, target_reach, target_height, max_iter=10, tol=0.0005):
-        """
-        Numerical 2D IK to find (lift, arm) for (reach, height).
-        Does not affect self.data until applied.
-        """
-        # Create a temporary data for probing and copy state manually for compatibility
         tmp_data = mujoco.MjData(self.model)
         tmp_data.qpos[:] = self.data.qpos[:]
         tmp_data.ctrl[:] = self.data.ctrl[:]
-        
-        # Initial guess from current control
-        c_lift = self.data.ctrl[self.act_ids["lift"]]
-        c_arm = self.data.ctrl[self.act_ids["arm"]]
+
+        current_lift = self.data.ctrl[self.act_ids["lift"]]
+        current_arm = self.data.ctrl[self.act_ids["arm"]]
 
         for _ in range(max_iter):
-            # Forward kinematics at current guess
-            self._set_lift_arm_qpos(tmp_data, c_lift, c_arm)
+            self._set_lift_arm_qpos(tmp_data, current_lift, current_arm)
             mujoco.mj_forward(self.model, tmp_data)
-            
-            ee_p = tmp_data.xpos[self.ee_id]
-            curr_base_p = tmp_data.xpos[self.body_id]
-            curr_r = np.linalg.norm(ee_p[:2] - curr_base_p[:2])
-            curr_h = ee_p[2] - curr_base_p[2]
-            
-            err = np.array([target_reach - curr_r, target_height - curr_h])
-            if np.linalg.norm(err) < tol: break
-            
-            # Numerical Jacobian
+
+            ee_pos = tmp_data.xpos[self.ee_id]
+            base_pos = tmp_data.xpos[self.body_id]
+            current_reach = np.linalg.norm(ee_pos[:2] - base_pos[:2])
+            current_height = ee_pos[2] - base_pos[2]
+            error = np.array([target_reach - current_reach, target_height - current_height])
+            if np.linalg.norm(error) < tol:
+                break
+
             eps = 1e-4
-            # Perturb lift
-            self._set_lift_arm_qpos(tmp_data, c_lift + eps, c_arm)
+            self._set_lift_arm_qpos(tmp_data, current_lift + eps, current_arm)
             mujoco.mj_forward(self.model, tmp_data)
-            ee_p1 = tmp_data.xpos[self.ee_id]
-            r1 = np.linalg.norm(ee_p1[:2] - curr_base_p[:2])
-            h1 = ee_p1[2] - curr_base_p[2]
-            
-            # Perturb arm
-            self._set_lift_arm_qpos(tmp_data, c_lift, c_arm + eps)
+            ee_pos_lift = tmp_data.xpos[self.ee_id]
+            reach_lift = np.linalg.norm(ee_pos_lift[:2] - base_pos[:2])
+            height_lift = ee_pos_lift[2] - base_pos[2]
+
+            self._set_lift_arm_qpos(tmp_data, current_lift, current_arm + eps)
             mujoco.mj_forward(self.model, tmp_data)
-            ee_p2 = tmp_data.xpos[self.ee_id]
-            r2 = np.linalg.norm(ee_p2[:2] - curr_base_p[:2])
-            h2 = ee_p2[2] - curr_base_p[2]
-            
-            J = np.array([
-                [(r1 - curr_r)/eps, (r2 - curr_r)/eps],
-                [(h1 - curr_h)/eps, (h2 - curr_h)/eps]
-            ])
-            
+            ee_pos_arm = tmp_data.xpos[self.ee_id]
+            reach_arm = np.linalg.norm(ee_pos_arm[:2] - base_pos[:2])
+            height_arm = ee_pos_arm[2] - base_pos[2]
+
+            jacobian = np.array(
+                [
+                    [(reach_lift - current_reach) / eps, (reach_arm - current_reach) / eps],
+                    [(height_lift - current_height) / eps, (height_arm - current_height) / eps],
+                ]
+            )
             try:
-                delta = np.linalg.solve(J, err)
-                c_lift = max(0.0, min(1.1, c_lift + delta[0]))
-                c_arm = max(0.0, min(0.52, c_arm + delta[1]))
+                delta = np.linalg.solve(jacobian, error)
             except np.linalg.LinAlgError:
                 break
-        
-        return c_lift, c_arm
+
+            current_lift = max(0.0, min(1.1, current_lift + delta[0]))
+            current_arm = max(0.0, min(0.52, current_arm + delta[1]))
+
+        return float(current_lift), float(current_arm)
 
     def _set_lift_arm_qpos(self, data_obj, lift_val, arm_val):
-        """Helper to set qpos for probe data."""
-        # Lift
-        aid_l = self.act_ids["lift"]
-        jid_l = self.model.actuator_trnid[aid_l, 0]
-        data_obj.qpos[self.model.jnt_qposadr[jid_l]] = lift_val
-        
-        # Arm (Distributed to 4 joints via tendon)
+        aid_lift = self.act_ids["lift"]
+        joint_id_lift = self.model.actuator_trnid[aid_lift, 0]
+        data_obj.qpos[self.model.jnt_qposadr[joint_id_lift]] = lift_val
+
         for i in range(4):
-            j_name = f"joint_arm_l{i}"
-            full_j_name = f"{self.robot_name}_{j_name}" if self.robot_name else j_name
-            jid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, full_j_name)
-            if jid != -1:
-                data_obj.qpos[self.model.jnt_qposadr[jid]] = arm_val / 4.0
+            joint_name = f"joint_arm_l{i}"
+            full_joint_name = f"{self.robot_name}_{joint_name}" if self.robot_name else joint_name
+            joint_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, full_joint_name)
+            if joint_id != -1:
+                data_obj.qpos[self.model.jnt_qposadr[joint_id]] = arm_val / 4.0
 
     def _get_base_pose(self):
         pos = self.data.xpos[self.body_id]
         quat = self.data.xquat[self.body_id]
         w, x, y, z = quat
-        yaw = np.arctan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
-        return pos[0], pos[1], yaw
+        yaw = math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
+        return float(pos[0]), float(pos[1]), float(yaw)
 
     def _update_ctrl_dict(self, vals: Dict[str, float]):
         for name, val in vals.items():
             if name in self.act_ids and self.act_ids[name] != -1:
                 self.data.ctrl[self.act_ids[name]] = val
 
-    def _linear_move_arm(self, target_lift, target_ext, duration):
-        sim_start_time = self.data.time
-        start_lift = self.data.ctrl[self.act_ids["lift"]]
-        start_ext = self.data.ctrl[self.act_ids["arm"]]
-        steps = int(duration / self.control_dt)
-        if steps <= 0: steps = 1
-        for t in range(1, steps + 1):
-            if self.emergency_stop_flag: break
-            alpha = t / steps
-            # Linear interpolation for constant velocity
-            curr_l = start_lift + alpha * (target_lift - start_lift)
-            curr_e = start_ext + alpha * (target_ext - start_ext)
-            self._update_ctrl_dict({"lift": curr_l, "arm": curr_e})
-            self._sync_sim(sim_start_time, t)
-        
-        self._wait_arm_settle(target_lift, target_ext)
+    def _normalize_angle(self, angle_rad: float) -> float:
+        return (angle_rad + math.pi) % (2.0 * math.pi) - math.pi
 
-    def _wait_for_base_stop(self, timeout=2.0):
-        """Wait until base velocity is near zero."""
-        if self.body_id == -1: return
-        sim_start = self.data.time
-        while self.data.time - sim_start < timeout:
-            # Check velocity of the base link (6 DOF for freejoint)
-            dof_adr = self.model.body_dofadr[self.body_id]
-            qvel_base = self.data.qvel[dof_adr:dof_adr+6]
-            if np.linalg.norm(qvel_base) < 0.01: break
-            time.sleep(0.001)
-
-    def _wait_arm_settle(self, target_lift, target_ext, timeout=1.0):
-        """Wait until lift and arm joints reach target positions."""
-        sim_start = self.data.time
-        # Get lift joint address
-        aid_l = self.act_ids.get("lift", -1)
-        if aid_l == -1: return
-        jid_l = self.model.actuator_trnid[aid_l, 0]
-        qadr_l = self.model.jnt_qposadr[jid_l]
-        
-        # Get arm joint address (joint_arm_l0)
-        jid_a = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, f"{self.robot_name}_joint_arm_l0" if self.robot_name else "joint_arm_l0")
-        qadr_a = self.model.jnt_qposadr[jid_a] if jid_a != -1 else -1
-        
-        while self.data.time - sim_start < timeout:
-            curr_l = self.data.qpos[qadr_l]
-            # Each telescopic joint takes 1/4 of the total extension
-            curr_a = self.data.qpos[qadr_a] * 4.0 if qadr_a != -1 else target_ext
-            
-            # Require both lift and arm to be within tolerance before returning
-            if abs(curr_l - target_lift) < 0.002 and abs(curr_a - target_ext) < 0.005:
-                break
-            time.sleep(0.001)
-
-    def _move_gripper(self, target_pos: float):
-        self._update_ctrl_dict({"gripper": target_pos})
-        sim_start = self.data.time
-        timeout = 2.0
-        while self.data.time - sim_start < timeout:
-            if self.emergency_stop_flag: break
-            if self.gripper_joint_id != -1:
-                curr = self.data.qpos[self.model.jnt_qposadr[self.gripper_joint_id]]
-                if abs(curr - target_pos) < 0.002: break
-            time.sleep(0.001)
+    def _sign(self, value: float) -> float:
+        return 1.0 if value >= 0.0 else -1.0
 
     def _sync_sim(self, start_sim_time, step_count):
         target_sim_time = start_sim_time + (step_count * self.control_dt)
         while self.data.time < target_sim_time:
-            if self.emergency_stop_flag: break
+            if self.emergency_stop_flag:
+                break
             time.sleep(0.001)

@@ -14,6 +14,8 @@ class RbtheronController(DifferentialDriveController):
         "rear_left_support",
         "rear_right_support",
     )
+    # User-facing caps stay conservative; runtime safe limits may clamp further
+    # based on actuator capability * SAFETY_SPEED_FACTOR in the shared base class.
     DEFAULT_LINEAR_SPEED = 0.35
     MAX_LINEAR_SPEED = 0.45
     DEFAULT_ANGULAR_SPEED_DEG = 30.0

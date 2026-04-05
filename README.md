@@ -129,6 +129,19 @@ Franka runtime support is self-contained under `robots/franka_control/`.
 - `close_gripper` always occupies 2 simulated seconds
 - the next action does not start early even if the fingers reach the target sooner
 
+### Mobile Base Speed Limits
+
+`rbtheron`, `tracer`, and `stretch` clamp user-requested base speeds to
+conservative safe limits before building motion trajectories. If a requested
+speed exceeds the safe limit, the controller prints a warning, clamps the speed,
+and computes `Traj Duration` from the clamped value.
+
+Current effective base limits:
+
+- `rbtheron`: `0.45 m/s`, `45 deg/s`
+- `tracer`: `0.45 m/s`, `45 deg/s`
+- `stretch`: `0.08 m/s`, about `26.9 deg/s`
+
 ### Developer Notes
 
 To add a new robot:
@@ -264,6 +277,19 @@ Franka 的运行依赖已经收敛到 `robots/franka_control/` 目录内。
 - `open_gripper` 固定占用 2 秒仿真时间
 - `close_gripper` 固定占用 2 秒仿真时间
 - 即使提前到位，也会等满 2 秒才开始下一步动作
+
+### 移动底盘速度上限
+
+`rbtheron`、`tracer` 和 `stretch` 在构建底盘运动轨迹前，会先把用户请求
+的速度裁切到保守的安全上限。如果用户给出的速度超过安全上限，控制器会
+打印 warning，并用裁切后的速度执行，同时命令行中的 `Traj Duration`
+也会基于裁切后的速度计算。
+
+当前实际生效的底盘上限为：
+
+- `rbtheron`：`0.45 m/s`、`45 deg/s`
+- `tracer`：`0.45 m/s`、`45 deg/s`
+- `stretch`：`0.08 m/s`、约 `26.9 deg/s`
 
 ### 开发说明
 
