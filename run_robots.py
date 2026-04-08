@@ -202,6 +202,60 @@ class SceneBuilder:
 
         def prefix_str(s): return f"{name_prefix}_{s}" if s else s
 
+        def inferred_asset_name(elem):
+            if elem.get("name"):
+                return elem.get("name")
+            file_path = elem.get("file")
+            if elem.tag in ["mesh", "texture"] and file_path:
+                return os.path.splitext(os.path.basename(file_path))[0]
+            return None
+
+        src_asset = root.find("asset")
+        asset_name_map = {}
+        if src_asset is not None:
+            for item in src_asset:
+                asset_name = inferred_asset_name(item)
+                if asset_name:
+                    asset_name_map[asset_name] = prefix_str(asset_name)
+
+        src_default = root.find("default")
+        default_class_names = {
+            item.get("class")
+            for item in src_default.iter("default")
+            if item.get("class")
+        } if src_default is not None else set()
+        default_class_map = {
+            cls_name: f"{name_prefix}_{cls_name}"
+            for cls_name in default_class_names
+        }
+
+        def rename_default_classes(elem):
+            """Namespace default class definitions and references for this robot instance."""
+            if elem.tag == "default" and elem.get("class") in default_class_map:
+                elem.set("class", default_class_map[elem.get("class")])
+
+            for attr in ["class", "childclass"]:
+                cls_name = elem.get(attr)
+                if cls_name in default_class_map:
+                    elem.set(attr, default_class_map[cls_name])
+
+            for child in elem:
+                rename_default_classes(child)
+
+        def rename_asset_refs(elem):
+            """Namespace assets and references so robot templates cannot collide."""
+            asset_name = inferred_asset_name(elem)
+            if elem.tag in ["mesh", "material", "texture"] and asset_name in asset_name_map:
+                elem.set("name", asset_name_map[asset_name])
+
+            for attr in ["mesh", "material", "texture"]:
+                value = elem.get(attr)
+                if value in asset_name_map:
+                    elem.set(attr, asset_name_map[value])
+
+            for child in elem:
+                rename_asset_refs(child)
+
         # Helper to recursively rename attributes
         def rename_attrs(elem, ignore_class=False):
             # Don't rename class if it refers to a default class (unless we are inside a default definition)
@@ -219,40 +273,46 @@ class SceneBuilder:
 
         # 1. Assets (Mesh/Material/Texture) - Deduplicate by name
         target_asset = scene_root.find("asset")
-        src_asset = root.find("asset")
         if src_asset is not None:
             for item in src_asset:
+                new_item = self._copy_elem(item)
+                rename_default_classes(new_item)
+                rename_asset_refs(new_item)
+
                 # Handle Paths for Meshes and Textures
-                attr_to_fix = "file" if item.tag in ["mesh", "texture"] else None
+                attr_to_fix = "file" if new_item.tag in ["mesh", "texture"] else None
                 if attr_to_fix:
-                    file_path = item.get(attr_to_fix)
+                    file_path = new_item.get(attr_to_fix)
                     if file_path and not os.path.isabs(file_path):
                         # Update to full relative path
                         new_path = os.path.join(asset_base_path, file_path)
                         # Normalize path separators
                         new_path = new_path.replace('\\', '/')
-                        item.set(attr_to_fix, new_path)
+                        new_item.set(attr_to_fix, new_path)
 
-                name = item.get("name") or item.get("file") 
+                name = new_item.get("name") or new_item.get("file") 
                 if name and name not in self.included_assets:
                     self.included_assets.add(name)
-                    target_asset.append(self._copy_elem(item))
+                    target_asset.append(new_item)
 
         # 2. Defaults - Deduplicate by class name
         target_default = scene_root.find("default")
-        src_default = root.find("default")
         if src_default is not None:
             for item in src_default:
                 # If it's a top-level default class (e.g. <default class="piper">)
-                cls_name = item.get("class")
+                new_item = self._copy_elem(item)
+                rename_default_classes(new_item)
+                rename_asset_refs(new_item)
+
+                cls_name = new_item.get("class")
                 if cls_name and cls_name not in self.included_defaults:
                     self.included_defaults.add(cls_name)
-                    target_default.append(self._copy_elem(item))
+                    target_default.append(new_item)
                 elif not cls_name: 
-                    tag_key = item.tag
+                    tag_key = ET.tostring(new_item, encoding="unicode")
                     if tag_key not in self.included_default_base_tags:
                         self.included_default_base_tags.add(tag_key)
-                        target_default.append(self._copy_elem(item))
+                        target_default.append(new_item)
 
         # 3. Worldbody
         target_wb = scene_root.find("worldbody")
@@ -260,6 +320,8 @@ class SceneBuilder:
         if src_wb is not None:
             for body in src_wb.findall("body"):
                 new_body = self._copy_elem(body)
+                rename_default_classes(new_body)
+                rename_asset_refs(new_body)
                 rename_attrs(new_body) # Apply prefix to body/joint names
                 new_body.set("pos", f"{pos[0]} {pos[1]} {pos[2]}")
                 
@@ -274,6 +336,8 @@ class SceneBuilder:
         if src_act is not None:
             for item in src_act:
                 new_item = self._copy_elem(item)
+                rename_default_classes(new_item)
+                rename_asset_refs(new_item)
                 rename_attrs(new_item)
                 target_act.append(new_item)
 
@@ -283,6 +347,8 @@ class SceneBuilder:
         if src_contact is not None:
             for item in src_contact:
                 new_item = self._copy_elem(item)
+                rename_default_classes(new_item)
+                rename_asset_refs(new_item)
                 rename_attrs(new_item)
                 target_contact.append(new_item)
 
@@ -292,6 +358,8 @@ class SceneBuilder:
         if src_eq is not None:
             for item in src_eq:
                 new_item = self._copy_elem(item)
+                rename_default_classes(new_item)
+                rename_asset_refs(new_item)
                 rename_attrs(new_item)
                 target_eq.append(new_item)
 
@@ -304,6 +372,8 @@ class SceneBuilder:
         if src_tendon is not None:
             for item in src_tendon:
                 new_item = self._copy_elem(item)
+                rename_default_classes(new_item)
+                rename_asset_refs(new_item)
                 rename_attrs(new_item)
                 target_tendon.append(new_item)
 
@@ -316,6 +386,8 @@ class SceneBuilder:
         if src_key is not None:
             for item in src_key:
                 new_item = self._copy_elem(item)
+                rename_default_classes(new_item)
+                rename_asset_refs(new_item)
                 # Apply prefix to keyframe names to avoid conflicts
                 rename_attrs(new_item)
                 target_key.append(new_item)

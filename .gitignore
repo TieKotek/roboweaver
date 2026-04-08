@@ -28,6 +28,8 @@ share/python-wheels/
 *.egg
 MANIFEST
 .venv
+.uv-cache/
+.uv-python/
 venv/
 ENV/
 env/
