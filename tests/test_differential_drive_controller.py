@@ -314,6 +314,7 @@ class DifferentialDriveProfileTests(unittest.TestCase):
                 break
 
         self.assertIsNotNone(collision_mesh)
+        self.assertEqual(collision_mesh.attrib.get("group"), "1")
         self.assertEqual(collision_mesh.attrib.get("contype"), "0")
         self.assertEqual(collision_mesh.attrib.get("conaffinity"), "0")
 
@@ -455,21 +456,18 @@ class DifferentialDriveProfileTests(unittest.TestCase):
         visual_bottom = visual_z + min_z
         self.assertLessEqual(visual_bottom - support_top, 0.004)
 
-    def test_rbtheron_has_simple_top_cargo_collision_surface(self):
+    def test_rbtheron_uses_lightweight_mesh_collision_for_cargo_surface(self):
         root = ET.parse("robots/rbtheron_control/rbtheron/rbtheron.xml").getroot()
 
-        cargo_deck = root.find(".//geom[@name='cargo_deck_collision']")
-        self.assertIsNotNone(cargo_deck)
-        self.assertEqual(cargo_deck.attrib.get("type"), "box")
-
-        deck_z = float(cargo_deck.attrib["pos"].split()[2])
-        deck_half_height = float(cargo_deck.attrib["size"].split()[2])
-        deck_top = deck_z + deck_half_height
-        self.assertGreaterEqual(deck_top, 0.30)
-        self.assertLessEqual(deck_top, 0.34)
-
         mesh_collision = root.find(".//geom[@name='chassis_mesh_collision']")
-        self.assertIsNone(mesh_collision)
+        self.assertIsNotNone(mesh_collision)
+        self.assertEqual(mesh_collision.attrib.get("type"), "mesh")
+        self.assertEqual(mesh_collision.attrib.get("mesh"), "theron_base_v4")
+        self.assertEqual(mesh_collision.attrib.get("condim"), "3")
+        self.assertEqual(mesh_collision.attrib.get("friction"), "1.0 0.005 0.0001")
+
+        cargo_deck = root.find(".//geom[@name='cargo_deck_collision']")
+        self.assertIsNone(cargo_deck)
 
     def test_mobile_base_speed_limits_stay_below_model_theoretical_limits(self):
         cases = [

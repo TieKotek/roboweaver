@@ -63,6 +63,9 @@ DEFAULT_CONVEYOR_WIDTH = 0.32
 DEFAULT_CONVEYOR_HEIGHT = 0.144
 DEFAULT_MOVABLE_OBJECT_CONTYPE = 2
 DEFAULT_MOVABLE_OBJECT_CONAFFINITY = 7
+ROBOT_GROUND_Z_OFFSETS = {
+    "tracer": 0.176,
+}
 
 # --- Helper Functions ---
 
@@ -155,7 +158,9 @@ class SceneBuilder:
         for robot in robots_conf:
             r_type = robot.get("type", "piper")
             r_name = robot.get("name", "robot")
-            base_pos = robot.get("base_pos", [0,0,0])
+            base_pos = list(robot.get("base_pos", [0,0,0]))
+            if len(base_pos) >= 3:
+                base_pos[2] = float(base_pos[2]) + ROBOT_GROUND_Z_OFFSETS.get(r_type, 0.0)
             
             if "base_quat" in robot:
                 base_quat = robot["base_quat"]

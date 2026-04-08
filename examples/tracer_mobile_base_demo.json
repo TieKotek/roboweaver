@@ -10,7 +10,7 @@
     {
       "name": "tracer_bot",
       "type": "tracer",
-      "base_pos": [0, 0, 0.176],
+      "base_pos": [0, 0, 0.0],
       "base_yaw": 45.0,
       "sequence": [
         {"action": "idle", "parameters": { "duration": 0.5 } },

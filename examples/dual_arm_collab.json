@@ -258,8 +258,8 @@
     },
     {
         "name": "c1",
-        "type": "rbtheron",
-        "base_pos": [0.0, 0.2, 0.176],
+        "type": "tracer",
+        "base_pos": [0.0, 0.2, 0.0],
         "base_yaw": 90.0,
         "sequence": [
             { "action": "idle", "parameters": { "duration": 30 } },
@@ -269,7 +269,7 @@
     {
         "name": "c2",
         "type": "rbtheron",
-        "base_pos": [0.8, 0.2, 0.176],
+        "base_pos": [0.8, 0.2, 0.0],
         "base_yaw": 90.0,
         "sequence": [
             { "action": "idle", "parameters": { "duration": 30 } },
