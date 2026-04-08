@@ -73,6 +73,13 @@ def yaw_to_quat(yaw_deg: float) -> List[float]:
     z = np.sin(yaw_rad / 2.0)
     return [w, 0.0, 0.0, z]
 
+
+def should_sync_viewer(sim_time: float, last_sync_time: float, sync_interval: float) -> bool:
+    """Return whether the viewer should be synced at the current sim time."""
+    if sync_interval <= 0.0 or last_sync_time is None:
+        return True
+    return (sim_time - last_sync_time) >= sync_interval
+
 # --- Scene Builder ---
 
 class SceneBuilder:
@@ -561,6 +568,12 @@ def main():
     parser = argparse.ArgumentParser(description="RoboWeaver: Heterogeneous Multi-Robot Runner")
     parser.add_argument("config", help="Path to JSON config")
     parser.add_argument("--headless", action="store_true")
+    parser.add_argument(
+        "--viewer-fps",
+        type=float,
+        default=60.0,
+        help="Maximum viewer sync rate. Use 0 to sync every physics step.",
+    )
     args = parser.parse_args()
 
     with open(args.config, 'r', encoding='utf-8') as f:
@@ -645,8 +658,12 @@ def main():
 
         if not args.headless:
             viewer = mujoco.viewer.launch_passive(model, data)
+            viewer_sync_interval = 1.0 / args.viewer_fps if args.viewer_fps > 0.0 else 0.0
+            last_viewer_sync_time = None
         else:
             viewer = None
+            viewer_sync_interval = 0.0
+            last_viewer_sync_time = None
 
         for t in threads: t.start()
 
@@ -656,8 +673,9 @@ def main():
             
             mujoco.mj_step(model, data)
             
-            if viewer:
+            if viewer and should_sync_viewer(data.time, last_viewer_sync_time, viewer_sync_interval):
                 viewer.sync()
+                last_viewer_sync_time = data.time
                 if not viewer.is_running(): break
             
             if args.headless and not any(t.running for t in threads):

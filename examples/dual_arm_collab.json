@@ -258,7 +258,7 @@
     },
     {
         "name": "c1",
-        "type": "tracer",
+        "type": "rbtheron",
         "base_pos": [0.0, 0.2, 0.176],
         "base_yaw": 90.0,
         "sequence": [
@@ -268,7 +268,7 @@
     },
     {
         "name": "c2",
-        "type": "tracer",
+        "type": "rbtheron",
         "base_pos": [0.8, 0.2, 0.176],
         "base_yaw": 90.0,
         "sequence": [

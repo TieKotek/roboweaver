@@ -455,6 +455,22 @@ class DifferentialDriveProfileTests(unittest.TestCase):
         visual_bottom = visual_z + min_z
         self.assertLessEqual(visual_bottom - support_top, 0.004)
 
+    def test_rbtheron_has_simple_top_cargo_collision_surface(self):
+        root = ET.parse("robots/rbtheron_control/rbtheron/rbtheron.xml").getroot()
+
+        cargo_deck = root.find(".//geom[@name='cargo_deck_collision']")
+        self.assertIsNotNone(cargo_deck)
+        self.assertEqual(cargo_deck.attrib.get("type"), "box")
+
+        deck_z = float(cargo_deck.attrib["pos"].split()[2])
+        deck_half_height = float(cargo_deck.attrib["size"].split()[2])
+        deck_top = deck_z + deck_half_height
+        self.assertGreaterEqual(deck_top, 0.30)
+        self.assertLessEqual(deck_top, 0.34)
+
+        mesh_collision = root.find(".//geom[@name='chassis_mesh_collision']")
+        self.assertIsNone(mesh_collision)
+
     def test_mobile_base_speed_limits_stay_below_model_theoretical_limits(self):
         cases = [
             (
