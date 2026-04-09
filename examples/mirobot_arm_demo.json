@@ -34,15 +34,15 @@
       ]
     },
     {
-      "name": "miro1",
+      "name": "arm2",
       "type": "mirobot",
-      "base_pos": [0.5, 0.25, 0.0],
+      "base_pos": [0.42, 0.23, 0.0],
       "sequence": [
         {
           "action": "move_linear",
           "description": "Reach forward in world coordinates",
           "parameters": {
-            "pose": [0.5, 0.05, 0.25],
+            "pose": [0.42, 0.05, 0.25],
             "euler": [0, 0, 0],
             "duration": 3.0
           }
@@ -50,15 +50,15 @@
       ]
     },
     {
-      "name": "miro2",
+      "name": "arm3",
       "type": "mirobot",
-      "base_pos": [0.5, -0.25, 0.0],
+      "base_pos": [0.8, 0.23, 0.0],
       "sequence": [
         {
           "action": "move_linear",
           "description": "Reach forward in world coordinates",
           "parameters": {
-            "pose": [0.5, -0.05, 0.25],
+            "pose": [0.8, 0.05, 0.25],
             "euler": [0, 0, 0],
             "duration": 3.0
           }
@@ -66,15 +66,15 @@
       ]
     },
     {
-      "name": "miro3",
+      "name": "arm4",
       "type": "mirobot",
-      "base_pos": [0.0, 0.25, 0.0],
+      "base_pos": [0.8, -0.23, 0.0],
       "sequence": [
         {
           "action": "move_linear",
           "description": "Reach forward in world coordinates",
           "parameters": {
-            "pose": [0.0, 0.05, 0.25],
+            "pose": [0.8, -0.05, 0.25],
             "euler": [0, 0, 0],
             "duration": 3.0
           }
