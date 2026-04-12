@@ -1,12 +1,14 @@
 import argparse
 import sys
 import unittest
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from run_robots import (
+    SceneBuilder,
     SimulationTimeVideoScheduler,
     build_arg_parser,
     configure_export_camera,
@@ -169,6 +171,19 @@ class RealtimePacingPolicyTests(unittest.TestCase):
 
     def test_non_export_mode_uses_realtime_pacing(self):
         self.assertTrue(should_sleep_for_realtime_pacing(export_enabled=False))
+
+
+class SceneBuilderOffscreenFramebufferTests(unittest.TestCase):
+    def test_apply_export_offscreen_framebuffer_size_sets_global_dimensions(self):
+        builder = SceneBuilder()
+        scene_root = ET.fromstring("<mujoco><visual><global azimuth='120' elevation='-20'/></visual></mujoco>")
+
+        builder._apply_export_offscreen_framebuffer_size(scene_root, 1920, 1088)
+
+        global_elem = scene_root.find("visual/global")
+        self.assertIsNotNone(global_elem)
+        self.assertEqual(global_elem.get("offwidth"), "1920")
+        self.assertEqual(global_elem.get("offheight"), "1088")
 
 
 if __name__ == "__main__":

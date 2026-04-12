@@ -234,7 +234,12 @@ class SceneBuilder:
         self.included_defaults: Set[str] = set() # Track default classes
         self.included_default_base_tags: Set[str] = set() # Track base default children like geom/joint
 
-    def build(self, config: Dict[str, Any]) -> str:
+    def build(
+        self,
+        config: Dict[str, Any],
+        export_offscreen_width: int | None = None,
+        export_offscreen_height: int | None = None,
+    ) -> str:
         run_id = str(uuid.uuid4())[:8]
         
         # Extract global defaults
@@ -272,6 +277,12 @@ class SceneBuilder:
         # New: Allow override timestep from JSON
         ts_val = scene_conf.get("timestep", 0.002)
         option.set("timestep", str(ts_val))
+        if export_offscreen_width is not None and export_offscreen_height is not None:
+            self._apply_export_offscreen_framebuffer_size(
+                scene_root,
+                export_offscreen_width,
+                export_offscreen_height,
+            )
 
         # Ensure sections exist
         for sec in ["worldbody", "actuator", "sensor", "contact", "equality", "asset", "default"]:
@@ -335,6 +346,21 @@ class SceneBuilder:
         scene_tree.write(temp_path)
         self.temp_files.append(temp_path)
         return temp_path
+
+    def _apply_export_offscreen_framebuffer_size(
+        self,
+        scene_root,
+        offwidth: int,
+        offheight: int,
+    ) -> None:
+        visual = scene_root.find("visual")
+        if visual is None:
+            visual = ET.SubElement(scene_root, "visual")
+        global_elem = visual.find("global")
+        if global_elem is None:
+            global_elem = ET.SubElement(visual, "global")
+        global_elem.set("offwidth", str(offwidth))
+        global_elem.set("offheight", str(offheight))
 
     def _merge_robot_xml(self, xml_path, name_prefix, pos, quat, scene_root):
         """Deep merge of robot XML components."""
@@ -720,8 +746,18 @@ def main():
     with open(args.config, 'r', encoding='utf-8') as f:
         config = json.load(f)
 
+    export_enabled = bool(args.save_video)
+    export_width = None
+    export_height = None
+    if export_enabled:
+        export_width, export_height = normalize_video_dimensions(args.width, args.height)
+
     builder = SceneBuilder()
-    scene_path = builder.build(config)
+    scene_path = builder.build(
+        config,
+        export_offscreen_width=export_width,
+        export_offscreen_height=export_height,
+    )
     print(f"Generated Scene: {scene_path}")
 
     # Create Log Directory
@@ -738,13 +774,12 @@ def main():
         # 1. Init Physics
         model = mujoco.MjModel.from_xml_path(scene_path)
         data = mujoco.MjData(model)
-        export_enabled = bool(args.save_video)
         export_camera = None
         if export_enabled:
             export_camera = mujoco.MjvCamera()
             mujoco.mjv_defaultFreeCamera(model, export_camera)
             configure_export_camera(export_camera, args.camera_zoom_out)
-            video_width, video_height = normalize_video_dimensions(args.width, args.height)
+            video_width, video_height = export_width, export_height
             adjustment_message = describe_video_dimension_adjustment(
                 args.width,
                 args.height,
