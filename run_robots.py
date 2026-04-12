@@ -85,6 +85,98 @@ def should_sync_viewer(sim_time: float, last_sync_time: float, sync_interval: fl
     return (sim_time - last_sync_time) >= sync_interval
 
 
+def build_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="RoboWeaver: Heterogeneous Multi-Robot Runner")
+    parser.add_argument("config", help="Path to JSON config")
+    parser.add_argument("--headless", action="store_true")
+    parser.add_argument(
+        "--viewer-fps",
+        type=float,
+        default=60.0,
+        help="Maximum viewer sync rate. Use 0 to sync every physics step.",
+    )
+    parser.add_argument("--save-video", help="Write an MP4 of the simulation to this path.")
+    parser.add_argument("--video-fps", type=float, default=30.0, help="Frame rate for exported video.")
+    parser.add_argument("--width", type=int, default=1280, help="Export video width in pixels.")
+    parser.add_argument("--height", type=int, default=720, help="Export video height in pixels.")
+    parser.add_argument("--camera", help="Named MuJoCo camera used for video export.")
+    return parser
+
+
+def validate_video_export_args(args) -> None:
+    if not getattr(args, "save_video", None):
+        return
+    if not getattr(args, "camera", None):
+        raise ValueError("video export requires --camera")
+    if getattr(args, "video_fps", 0.0) <= 0.0:
+        raise ValueError("video export requires positive --video-fps")
+    if getattr(args, "width", 0) <= 0:
+        raise ValueError("video export requires positive --width")
+    if getattr(args, "height", 0) <= 0:
+        raise ValueError("video export requires positive --height")
+
+
+class SimulationTimeVideoScheduler:
+    def __init__(self, video_fps: float):
+        self.frame_interval = 1.0 / video_fps
+        self.next_frame_time = 0.0
+        self._initial_frame_pending = True
+
+    def should_render_initial_frame(self) -> bool:
+        return self._initial_frame_pending
+
+    def should_render_at(self, sim_time: float) -> bool:
+        return sim_time >= self.next_frame_time
+
+    def mark_frame_rendered(self) -> None:
+        self._initial_frame_pending = False
+        self.next_frame_time += self.frame_interval
+
+
+def list_named_cameras(model) -> List[str]:
+    names = []
+    for index in range(model.ncam):
+        camera = model.cam(index)
+        if getattr(camera, "name", None):
+            names.append(camera.name)
+    return names
+
+
+def get_named_camera_id(model, camera_name: str) -> int:
+    available = list_named_cameras(model)
+    for index, name in enumerate(available):
+        if name == camera_name:
+            return index
+    suffix_matches = [
+        index for index, name in enumerate(available)
+        if name.endswith(f"_{camera_name}")
+    ]
+    if len(suffix_matches) == 1:
+        return suffix_matches[0]
+    raise ValueError(
+        f"unknown camera '{camera_name}'. Available cameras: {', '.join(available) or '<none>'}"
+    )
+
+
+def create_video_writer(output_path: str, video_fps: float, force_missing_dependency: bool = False):
+    if force_missing_dependency:
+        raise RuntimeError("imageio is required for MP4 export")
+    try:
+        import imageio.v2 as imageio
+    except ImportError as exc:
+        raise RuntimeError("imageio is required for MP4 export") from exc
+    return imageio.get_writer(output_path, fps=video_fps)
+
+
+def should_launch_viewer(args) -> bool:
+    return not args.headless and not args.save_video
+
+
+def render_video_frame(renderer, data, camera, writer) -> None:
+    renderer.update_scene(data, camera=camera)
+    writer.append_data(renderer.render())
+
+
 @dataclass
 class RobotExecutionState:
     action_counts: Dict[str, int]
@@ -604,16 +696,9 @@ class RobotThread(threading.Thread):
         self.running = False
 
 def main():
-    parser = argparse.ArgumentParser(description="RoboWeaver: Heterogeneous Multi-Robot Runner")
-    parser.add_argument("config", help="Path to JSON config")
-    parser.add_argument("--headless", action="store_true")
-    parser.add_argument(
-        "--viewer-fps",
-        type=float,
-        default=60.0,
-        help="Maximum viewer sync rate. Use 0 to sync every physics step.",
-    )
+    parser = build_arg_parser()
     args = parser.parse_args()
+    validate_video_export_args(args)
 
     with open(args.config, 'r', encoding='utf-8') as f:
         config = json.load(f)
@@ -628,10 +713,21 @@ def main():
     os.makedirs(log_dir, exist_ok=True)
     print(f"Logging to: {log_dir}")
 
+    viewer = None
+    renderer = None
+    writer = None
+
     try:
         # 1. Init Physics
         model = mujoco.MjModel.from_xml_path(scene_path)
         data = mujoco.MjData(model)
+        export_enabled = bool(args.save_video)
+        export_camera = None
+        if export_enabled:
+            export_camera = get_named_camera_id(model, args.camera)
+            video_dir = os.path.dirname(args.save_video)
+            if video_dir:
+                os.makedirs(video_dir, exist_ok=True)
         
         # 2. Init Controllers
         threads = []
@@ -699,39 +795,60 @@ def main():
         # Apply initial positions to kinematics
         mujoco.mj_forward(model, data)
 
-        if not args.headless:
+        if should_launch_viewer(args):
             viewer = mujoco.viewer.launch_passive(model, data)
             viewer_sync_interval = 1.0 / args.viewer_fps if args.viewer_fps > 0.0 else 0.0
             last_viewer_sync_time = None
         else:
-            viewer = None
             viewer_sync_interval = 0.0
             last_viewer_sync_time = None
+
+        if export_enabled:
+            renderer = mujoco.Renderer(model, height=args.height, width=args.width)
+            writer = create_video_writer(args.save_video, args.video_fps)
+            scheduler = SimulationTimeVideoScheduler(args.video_fps)
 
         for t in threads: t.start()
 
         print("Simulation running...")
+        if export_enabled and scheduler.should_render_initial_frame():
+            render_video_frame(renderer, data, export_camera, writer)
+            scheduler.mark_frame_rendered()
+
         while True:
-            start = time.time()
-            
+            step_start = time.time()
+
             mujoco.mj_step(model, data)
-            
+
+            if export_enabled:
+                while scheduler.should_render_at(data.time):
+                    render_video_frame(renderer, data, export_camera, writer)
+                    scheduler.mark_frame_rendered()
+
             if viewer and should_sync_viewer(data.time, last_viewer_sync_time, viewer_sync_interval):
                 viewer.sync()
                 last_viewer_sync_time = data.time
-                if not viewer.is_running(): break
-            
-            if args.headless and not any(t.running for t in threads):
+                if not viewer.is_running():
+                    break
+
+            if not any(t.running for t in threads):
                 break
 
-            rem = model.opt.timestep - (time.time() - start)
-            if rem > 0: time.sleep(rem)
+            if not export_enabled:
+                rem = model.opt.timestep - (time.time() - step_start)
+                if rem > 0:
+                    time.sleep(rem)
 
     except KeyboardInterrupt:
         pass
     finally:
         builder.cleanup()
-        if 'viewer' in locals() and viewer: viewer.close()
+        if writer:
+            writer.close()
+        if renderer:
+            renderer.close()
+        if viewer:
+            viewer.close()
 
 if __name__ == "__main__":
     main()
