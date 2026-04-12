@@ -105,6 +105,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=1.5,
         help="Distance multiplier applied to the default export free camera.",
     )
+    parser.add_argument("--camera-lookat-x", type=float, default=0.0, help="Export camera look-at X.")
+    parser.add_argument("--camera-lookat-y", type=float, default=0.0, help="Export camera look-at Y.")
+    parser.add_argument("--camera-lookat-z", type=float, default=0.0, help="Export camera look-at Z.")
     return parser
 
 
@@ -163,8 +166,8 @@ class SimulationTimeVideoScheduler:
 EXPORT_CAMERA_BASE_DISTANCE = 4.0
 
 
-def configure_export_camera(camera, zoom_out: float):
-    camera.lookat[:] = [0.0, 0.0, 0.0]
+def configure_export_camera(camera, zoom_out: float, lookat: List[float]):
+    camera.lookat[:] = lookat
     camera.azimuth = 90.0
     camera.elevation = -45.0
     camera.distance = EXPORT_CAMERA_BASE_DISTANCE * zoom_out
@@ -778,7 +781,11 @@ def main():
         if export_enabled:
             export_camera = mujoco.MjvCamera()
             mujoco.mjv_defaultFreeCamera(model, export_camera)
-            configure_export_camera(export_camera, args.camera_zoom_out)
+            configure_export_camera(
+                export_camera,
+                args.camera_zoom_out,
+                [args.camera_lookat_x, args.camera_lookat_y, args.camera_lookat_z],
+            )
             video_width, video_height = export_width, export_height
             adjustment_message = describe_video_dimension_adjustment(
                 args.width,
