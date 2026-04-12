@@ -1,0 +1,473 @@
+{
+  "description": "WLKATA Mirobot basic motion demo",
+  "scene": {
+    "objects": [
+      {
+        "name": "cargo",
+        "type": "box",
+        "size": [
+          0.04,
+          0.03,
+          0.02
+        ],
+        "pos": [
+          0.0,
+          0.0,
+          0.125
+        ],
+        "rgba": [
+          0.22,
+          0.56,
+          0.88,
+          1.0
+        ],
+        "movable": true,
+        "mass": 0.05,
+        "friction": [
+          1.6,
+          0.01,
+          0.001
+        ]
+      }
+    ]
+  },
+  "robots": [
+    {
+      "name": "belt",
+      "type": "conveyor",
+      "length": 2.0,
+      "width": 0.2,
+      "height": 0.1,
+      "base_pos": [
+        0.25,
+        0.0,
+        0.0
+      ],
+      "sequence": [
+        {
+          "action": "run",
+          "parameters": {
+            "speed": 15.0,
+            "duration": 30.0
+          },
+          "description": "Run the conveyor"
+        }
+      ]
+    },
+    {
+      "name": "arm2",
+      "type": "mirobot",
+      "base_pos": [
+        0.42,
+        0.23,
+        0.0
+      ],
+      "sequence": [
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [
+              0.5835,
+              0.2319,
+              0.0718
+            ],
+            "euler": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "duration": 5.3574238212036205
+          },
+          "description": "Converted G00 command"
+        },
+        {
+          "action": "idle",
+          "parameters": {
+            "duration": 0.8
+          },
+          "description": "End effector engage wait (M3 S1000)"
+        },
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [
+              0.585,
+              0.2319,
+              0.058
+            ],
+            "euler": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "duration": 0.5
+          },
+          "description": "Converted G00 command"
+        },
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [
+              0.585,
+              0.2319,
+              0.145
+            ],
+            "euler": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "duration": 2.61
+          },
+          "description": "Converted G00 command"
+        },
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [
+              0.5727,
+              0.13561,
+              0.23553
+            ],
+            "euler": [
+              1.55,
+              21.36,
+              51.68
+            ],
+            "duration": 3.9820674906385
+          },
+          "description": "Converted G00 command"
+        },
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [
+              0.4541,
+              0.0031,
+              0.1461
+            ],
+            "euler": [
+              0.0,
+              0.0,
+              90.0
+            ],
+            "duration": 5.971626788405318
+          },
+          "description": "Converted G00 command"
+        },
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [
+              0.445,
+              -0.01,
+              0.135
+            ],
+            "euler": [
+              0.0,
+              3.9,
+              90.0
+            ],
+            "duration": 0.5829811317701455
+          },
+          "description": "Converted G00 command"
+        },
+        {
+          "action": "idle",
+          "parameters": {
+            "duration": 0.5
+          },
+          "description": "End effector release wait (M3 S0)"
+        },
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [
+              0.60367,
+              0.23,
+              0.23
+            ],
+            "euler": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "duration": 9.089612313514806
+          },
+          "description": "Converted G00 command"
+        }
+      ]
+    },
+    {
+      "name": "arm3",
+      "type": "mirobot",
+      "base_pos": [
+        0.8,
+        0.23,
+        0.0
+      ],
+      "sequence": [
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [
+              0.9,
+              0.09,
+              0.205
+            ],
+            "euler": [
+              0.0,
+              -25.0,
+              -90.0
+            ],
+            "duration": 8.028854214643582
+          },
+          "description": "Converted G00 command"
+        },
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [
+              0.8,
+              0.07,
+              0.185
+            ],
+            "euler": [
+              0.0,
+              -25.0,
+              -90.0
+            ],
+            "duration": 3.117691453623979
+          },
+          "description": "Converted G00 command"
+        },
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [
+              0.8,
+              0.05,
+              0.17
+            ],
+            "euler": [
+              0.0,
+              -25.0,
+              -90.0
+            ],
+            "duration": 0.75
+          },
+          "description": "Converted G00 command"
+        },
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [
+              0.78781,
+              0.04367,
+              0.23107
+            ],
+            "euler": [
+              -15.85,
+              -30.7,
+              -100.15
+            ],
+            "duration": 1.8778681822747836
+          },
+          "description": "Converted G00 command"
+        },
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [
+              0.777,
+              -0.01,
+              0.14
+            ],
+            "euler": [
+              0.0,
+              -25.0,
+              -90.0
+            ],
+            "duration": 3.1877833850498685
+          },
+          "description": "Converted G00 command"
+        },
+        {
+          "action": "idle",
+          "parameters": {
+            "duration": 0.8
+          },
+          "description": "End effector engage wait (M3 S1000)"
+        },
+        {
+          "action": "idle",
+          "parameters": {
+            "duration": 0.5
+          },
+          "description": "End effector release wait (M3 S0)"
+        },
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [
+              0.77,
+              0.05,
+              0.17
+            ],
+            "euler": [
+              0.0,
+              -25.0,
+              -90.0
+            ],
+            "duration": 2.02338824747007
+          },
+          "description": "Converted G00 command"
+        },
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [
+              0.98367,
+              0.23,
+              0.23
+            ],
+            "euler": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "duration": 8.572594823622541
+          },
+          "description": "Converted G00 command"
+        }
+      ]
+    },
+    {
+      "name": "arm4",
+      "type": "mirobot",
+      "base_pos": [
+        0.8,
+        -0.23,
+        0.0
+      ],
+      "sequence": [
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [
+              0.9,
+              -0.09,
+              0.205
+            ],
+            "euler": [
+              0.0,
+              -25.0,
+              90.0
+            ],
+            "duration": 8.028854214643582
+          },
+          "description": "Converted G00 command"
+        },
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [
+              0.8,
+              -0.07,
+              0.185
+            ],
+            "euler": [
+              0.0,
+              -25.0,
+              90.0
+            ],
+            "duration": 3.117691453623979
+          },
+          "description": "Converted G00 command"
+        },
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [
+              0.8,
+              -0.05,
+              0.17
+            ],
+            "euler": [
+              0.0,
+              -25.0,
+              90.0
+            ],
+            "duration": 0.75
+          },
+          "description": "Converted G00 command"
+        },
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [
+              0.823,
+              0.01,
+              0.14
+            ],
+            "euler": [
+              0.0,
+              -25.0,
+              90.0
+            ],
+            "duration": 2.127463278178968
+          },
+          "description": "Converted G00 command"
+        },
+        {
+          "action": "idle",
+          "parameters": {
+            "duration": 0.8
+          },
+          "description": "End effector engage wait (M3 S1000)"
+        },
+        {
+          "action": "idle",
+          "parameters": {
+            "duration": 0.5
+          },
+          "description": "End effector release wait (M3 S0)"
+        },
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [
+              0.83,
+              -0.05,
+              0.17
+            ],
+            "euler": [
+              0.0,
+              -25.0,
+              90.0
+            ],
+            "duration": 2.02338824747007
+          },
+          "description": "Converted G00 command"
+        },
+        {
+          "action": "move_cartesian",
+          "parameters": {
+            "pose": [
+              0.98367,
+              -0.23,
+              0.23
+            ],
+            "euler": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "duration": 7.324822319346729
+          },
+          "description": "Converted G00 command"
+        }
+      ]
+    }
+  ]
+}

@@ -17,7 +17,7 @@ AXES = ("X", "Y", "Z", "A", "B", "C")
 @dataclass
 class ParserConfig:
     angular_speed_deg_per_sec: float = 90.0
-    minimum_motion_duration_sec: float = 0.2
+    minimum_motion_duration_sec: float = 0.5
     tool_engage_wait_sec: float = 0.8
     tool_release_wait_sec: float = 0.5
 
