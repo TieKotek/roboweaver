@@ -160,8 +160,14 @@ class SimulationTimeVideoScheduler:
         self.next_frame_time += self.frame_interval
 
 
+EXPORT_CAMERA_BASE_DISTANCE = 4.0
+
+
 def configure_export_camera(camera, zoom_out: float):
-    camera.distance *= zoom_out
+    camera.lookat[:] = [0.0, 0.0, 0.0]
+    camera.azimuth = 90.0
+    camera.elevation = -45.0
+    camera.distance = EXPORT_CAMERA_BASE_DISTANCE * zoom_out
     return camera
 
 

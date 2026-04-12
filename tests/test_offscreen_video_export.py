@@ -140,15 +140,17 @@ class VideoDimensionAdjustmentMessageTests(unittest.TestCase):
 
 
 class ExportCameraConfigTests(unittest.TestCase):
-    def test_build_export_camera_scales_distance_only(self):
+    def test_build_export_camera_uses_fixed_world_view(self):
         camera = SimpleNamespace(distance=4.0, azimuth=120.0, elevation=-20.0)
+        camera.lookat = [1.0, 2.0, 3.0]
 
         configured = configure_export_camera(camera, 1.5)
 
         self.assertIs(configured, camera)
+        self.assertEqual(configured.lookat, [0.0, 0.0, 0.0])
+        self.assertEqual(configured.azimuth, 90.0)
+        self.assertEqual(configured.elevation, -45.0)
         self.assertEqual(configured.distance, 6.0)
-        self.assertEqual(configured.azimuth, 120.0)
-        self.assertEqual(configured.elevation, -20.0)
 
 
 class ViewerLaunchPolicyTests(unittest.TestCase):
