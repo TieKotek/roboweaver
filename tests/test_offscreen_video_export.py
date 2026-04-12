@@ -10,7 +10,9 @@ from run_robots import (
     SimulationTimeVideoScheduler,
     build_arg_parser,
     create_video_writer,
+    describe_video_dimension_adjustment,
     get_named_camera_id,
+    normalize_video_dimensions,
     should_launch_viewer,
     validate_video_export_args,
 )
@@ -131,6 +133,25 @@ class VideoWriterFactoryTests(unittest.TestCase):
     def test_create_video_writer_raises_clear_error_when_dependency_missing(self):
         with self.assertRaisesRegex(RuntimeError, "imageio"):
             create_video_writer("logs/out.mp4", 24.0, force_missing_dependency=True)
+
+
+class VideoDimensionNormalizationTests(unittest.TestCase):
+    def test_keeps_dimensions_already_aligned_to_macro_block_size(self):
+        self.assertEqual(normalize_video_dimensions(640, 368), (640, 368))
+
+    def test_rounds_non_aligned_dimensions_up_to_next_multiple_of_16(self):
+        self.assertEqual(normalize_video_dimensions(640, 360), (640, 368))
+
+
+class VideoDimensionAdjustmentMessageTests(unittest.TestCase):
+    def test_reports_adjusted_dimensions_when_size_changes(self):
+        self.assertEqual(
+            describe_video_dimension_adjustment(640, 360, 640, 368),
+            "Adjusting video size from 640x360 to 640x368 for H.264 compatibility.",
+        )
+
+    def test_returns_none_when_no_adjustment_is_needed(self):
+        self.assertIsNone(describe_video_dimension_adjustment(640, 368, 640, 368))
 
 
 class ViewerLaunchPolicyTests(unittest.TestCase):

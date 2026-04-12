@@ -116,6 +116,28 @@ def validate_video_export_args(args) -> None:
         raise ValueError("video export requires positive --height")
 
 
+def normalize_video_dimensions(width: int, height: int, block_size: int = 16) -> tuple[int, int]:
+    def round_up(value: int) -> int:
+        remainder = value % block_size
+        return value if remainder == 0 else value + (block_size - remainder)
+
+    return round_up(width), round_up(height)
+
+
+def describe_video_dimension_adjustment(
+    requested_width: int,
+    requested_height: int,
+    actual_width: int,
+    actual_height: int,
+):
+    if (requested_width, requested_height) == (actual_width, actual_height):
+        return None
+    return (
+        f"Adjusting video size from {requested_width}x{requested_height} "
+        f"to {actual_width}x{actual_height} for H.264 compatibility."
+    )
+
+
 class SimulationTimeVideoScheduler:
     def __init__(self, video_fps: float):
         self.frame_interval = 1.0 / video_fps
@@ -725,6 +747,15 @@ def main():
         export_camera = None
         if export_enabled:
             export_camera = get_named_camera_id(model, args.camera)
+            video_width, video_height = normalize_video_dimensions(args.width, args.height)
+            adjustment_message = describe_video_dimension_adjustment(
+                args.width,
+                args.height,
+                video_width,
+                video_height,
+            )
+            if adjustment_message:
+                print(adjustment_message)
             video_dir = os.path.dirname(args.save_video)
             if video_dir:
                 os.makedirs(video_dir, exist_ok=True)
@@ -804,7 +835,7 @@ def main():
             last_viewer_sync_time = None
 
         if export_enabled:
-            renderer = mujoco.Renderer(model, height=args.height, width=args.width)
+            renderer = mujoco.Renderer(model, height=video_height, width=video_width)
             writer = create_video_writer(args.save_video, args.video_fps)
             scheduler = SimulationTimeVideoScheduler(args.video_fps)
 
