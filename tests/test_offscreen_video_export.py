@@ -14,6 +14,7 @@ from run_robots import (
     describe_video_dimension_adjustment,
     normalize_video_dimensions,
     should_launch_viewer,
+    should_sleep_for_realtime_pacing,
     validate_video_export_args,
 )
 
@@ -158,6 +159,14 @@ class ViewerLaunchPolicyTests(unittest.TestCase):
     def test_normal_mode_launches_viewer(self):
         args = argparse.Namespace(headless=False, save_video=None)
         self.assertTrue(should_launch_viewer(args))
+
+
+class RealtimePacingPolicyTests(unittest.TestCase):
+    def test_export_mode_still_uses_realtime_pacing(self):
+        self.assertTrue(should_sleep_for_realtime_pacing(export_enabled=True))
+
+    def test_non_export_mode_uses_realtime_pacing(self):
+        self.assertTrue(should_sleep_for_realtime_pacing(export_enabled=False))
 
 
 if __name__ == "__main__":

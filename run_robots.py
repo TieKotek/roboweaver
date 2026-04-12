@@ -179,6 +179,10 @@ def should_launch_viewer(args) -> bool:
     return not args.headless and not args.save_video
 
 
+def should_sleep_for_realtime_pacing(export_enabled: bool) -> bool:
+    return True
+
+
 def render_video_frame(renderer, data, camera, writer) -> None:
     renderer.update_scene(data, camera=camera)
     writer.append_data(renderer.render())
@@ -852,7 +856,7 @@ def main():
             if not any(t.running for t in threads):
                 break
 
-            if not export_enabled:
+            if should_sleep_for_realtime_pacing(export_enabled):
                 rem = model.opt.timestep - (time.time() - step_start)
                 if rem > 0:
                     time.sleep(rem)
