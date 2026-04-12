@@ -85,6 +85,87 @@ def should_sync_viewer(sim_time: float, last_sync_time: float, sync_interval: fl
     return (sim_time - last_sync_time) >= sync_interval
 
 
+def build_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="RoboWeaver: Heterogeneous Multi-Robot Runner")
+    parser.add_argument("config", help="Path to JSON config")
+    parser.add_argument("--headless", action="store_true")
+    parser.add_argument(
+        "--viewer-fps",
+        type=float,
+        default=60.0,
+        help="Maximum viewer sync rate. Use 0 to sync every physics step.",
+    )
+    parser.add_argument("--save-video", help="Write an MP4 of the simulation to this path.")
+    parser.add_argument("--video-fps", type=float, default=30.0, help="Frame rate for exported video.")
+    parser.add_argument("--width", type=int, default=1280, help="Export video width in pixels.")
+    parser.add_argument("--height", type=int, default=720, help="Export video height in pixels.")
+    parser.add_argument("--camera", help="Named MuJoCo camera used for video export.")
+    return parser
+
+
+def validate_video_export_args(args) -> None:
+    if not getattr(args, "save_video", None):
+        return
+    if not getattr(args, "camera", None):
+        raise ValueError("video export requires --camera")
+    if getattr(args, "video_fps", 0.0) <= 0.0:
+        raise ValueError("video export requires positive --video-fps")
+    if getattr(args, "width", 0) <= 0:
+        raise ValueError("video export requires positive --width")
+    if getattr(args, "height", 0) <= 0:
+        raise ValueError("video export requires positive --height")
+
+
+class SimulationTimeVideoScheduler:
+    def __init__(self, video_fps: float):
+        self.frame_interval = 1.0 / video_fps
+        self.next_frame_time = 0.0
+        self._initial_frame_pending = True
+
+    def should_render_initial_frame(self) -> bool:
+        return self._initial_frame_pending
+
+    def should_render_at(self, sim_time: float) -> bool:
+        return sim_time >= self.next_frame_time
+
+    def mark_frame_rendered(self) -> None:
+        self._initial_frame_pending = False
+        self.next_frame_time += self.frame_interval
+
+
+def list_named_cameras(model) -> List[str]:
+    names = []
+    for index in range(model.ncam):
+        camera = model.cam(index)
+        if getattr(camera, "name", None):
+            names.append(camera.name)
+    return names
+
+
+def get_named_camera_id(model, camera_name: str) -> int:
+    available = list_named_cameras(model)
+    for index, name in enumerate(available):
+        if name == camera_name:
+            return index
+    raise ValueError(
+        f"unknown camera '{camera_name}'. Available cameras: {', '.join(available) or '<none>'}"
+    )
+
+
+def create_video_writer(output_path: str, video_fps: float, force_missing_dependency: bool = False):
+    if force_missing_dependency:
+        raise RuntimeError("imageio is required for MP4 export")
+    try:
+        import imageio.v2 as imageio
+    except ImportError as exc:
+        raise RuntimeError("imageio is required for MP4 export") from exc
+    return imageio.get_writer(output_path, fps=video_fps)
+
+
+def should_launch_viewer(args) -> bool:
+    return not args.headless and not args.save_video
+
+
 @dataclass
 class RobotExecutionState:
     action_counts: Dict[str, int]
