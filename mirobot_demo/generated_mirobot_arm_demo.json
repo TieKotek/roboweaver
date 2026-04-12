@@ -48,9 +48,49 @@
           "action": "run",
           "parameters": {
             "speed": 15.0,
-            "duration": 30.0
+            "duration": 4.0
           },
-          "description": "Run the conveyor"
+          "description": "Move cargo to arm2"
+        },
+        {
+          "action": "wait",
+          "parameters": {
+            "robot": "arm2",
+            "action_index": 8
+          },
+          "description": "Hold while arm2 handles cargo"
+        },
+        {
+          "action": "run",
+          "parameters": {
+            "speed": 15.0,
+            "duration": 4.0
+          },
+          "description": "Move cargo to arm3 and arm4"
+        },
+        {
+          "action": "wait",
+          "parameters": {
+            "robot": "arm3",
+            "action_index": 7
+          },
+          "description": "Wait for arm3 release handling"
+        },
+        {
+          "action": "wait",
+          "parameters": {
+            "robot": "arm4",
+            "action_index": 6
+          },
+          "description": "Wait for arm4 release handling"
+        },
+        {
+          "action": "run",
+          "parameters": {
+            "speed": 15.0,
+            "duration": 3.0
+          },
+          "description": "Resume conveyor after arm3 and arm4"
         }
       ]
     },
@@ -63,6 +103,14 @@
         0.0
       ],
       "sequence": [
+        {
+          "action": "wait",
+          "parameters": {
+            "robot": "belt",
+            "action_index": 0
+          },
+          "description": "Wait for conveyor stop at arm2"
+        },
         {
           "action": "move_cartesian",
           "parameters": {
@@ -208,6 +256,14 @@
       ],
       "sequence": [
         {
+          "action": "wait",
+          "parameters": {
+            "robot": "belt",
+            "action_index": 2
+          },
+          "description": "Wait for conveyor stop at arm3 and arm4"
+        },
+        {
           "action": "move_cartesian",
           "parameters": {
             "pose": [
@@ -351,6 +407,14 @@
         0.0
       ],
       "sequence": [
+        {
+          "action": "wait",
+          "parameters": {
+            "robot": "belt",
+            "action_index": 2
+          },
+          "description": "Wait for conveyor stop at arm3 and arm4"
+        },
         {
           "action": "move_cartesian",
           "parameters": {

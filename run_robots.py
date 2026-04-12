@@ -17,6 +17,7 @@ import uuid
 import numpy as np
 import math
 from typing import Dict, Any, List, Set
+from dataclasses import dataclass, field
 
 # --- Robot Registry ---
 from robot_common.robot_api import BaseRobotController
@@ -82,6 +83,36 @@ def should_sync_viewer(sim_time: float, last_sync_time: float, sync_interval: fl
     if sync_interval <= 0.0 or last_sync_time is None:
         return True
     return (sim_time - last_sync_time) >= sync_interval
+
+
+@dataclass
+class RobotExecutionState:
+    action_counts: Dict[str, int]
+    completed_actions: Set[tuple[str, int]] = field(default_factory=set)
+    current_action_index: Dict[str, int] = field(default_factory=dict)
+
+    def __post_init__(self):
+        self._lock = threading.Lock()
+
+    def validate_wait_target(self, robot_name: str, action_index: int) -> None:
+        if robot_name not in self.action_counts:
+            raise ValueError(f"unknown target robot '{robot_name}'")
+        if action_index < 0:
+            raise ValueError(f"negative action index {action_index}")
+        if action_index >= self.action_counts[robot_name]:
+            raise ValueError(f"target action index {action_index} is out of range for '{robot_name}'")
+
+    def mark_action_started(self, robot_name: str, action_index: int) -> None:
+        with self._lock:
+            self.current_action_index[robot_name] = action_index
+
+    def mark_action_complete(self, robot_name: str, action_index: int) -> None:
+        with self._lock:
+            self.completed_actions.add((robot_name, action_index))
+
+    def is_action_complete(self, robot_name: str, action_index: int) -> bool:
+        with self._lock:
+            return (robot_name, action_index) in self.completed_actions
 
 # --- Scene Builder ---
 
@@ -553,19 +584,22 @@ class SceneBuilder:
 # --- Execution Engine ---
 
 class RobotThread(threading.Thread):
-    def __init__(self, controller: BaseRobotController, sequence: List[Dict]):
+    def __init__(self, controller: BaseRobotController, sequence: List[Dict], execution_state: RobotExecutionState):
         super().__init__(daemon=True)
         self.controller = controller
         self.sequence = sequence
+        self.execution_state = execution_state
         self.running = False
         self.print_state = True
 
     def run(self):
         self.running = True
         print(f"[{self.controller.robot_name}] Started.")
-        for step in self.sequence:
+        for action_index, step in enumerate(self.sequence):
             if not self.running: break
+            self.execution_state.mark_action_started(self.controller.robot_name, action_index)
             self.controller.execute_action(step, print_state=self.print_state)
+            self.execution_state.mark_action_complete(self.controller.robot_name, action_index)
         print(f"[{self.controller.robot_name}] Finished.")
         self.running = False
 
@@ -606,6 +640,9 @@ def main():
         if not robots_conf and "sequence" in config:
             raise ValueError("No robots defined in config.")
 
+        action_counts = {r_conf.get("name", "robot"): len(r_conf.get("sequence", [])) for r_conf in robots_conf}
+        execution_state = RobotExecutionState(action_counts)
+
         for r_conf in robots_conf:
             r_type = r_conf.get("type", None)
             r_name = r_conf.get("name", "robot")
@@ -632,8 +669,8 @@ def main():
             
             if urdf_path:
                 ctrl = ControllerClass(
-                    model, 
-                    data, 
+                    model,
+                    data,
                     robot_name=r_name, 
                     urdf_path=urdf_path,
                     base_pos=base_pos,
@@ -653,8 +690,9 @@ def main():
                     log_dir=log_dir,
                     **extra_kwargs
                 )
-            
-            t = RobotThread(ctrl, r_conf.get("sequence", []))
+
+            ctrl.set_execution_state(execution_state)
+            t = RobotThread(ctrl, r_conf.get("sequence", []), execution_state)
             threads.append(t)
 
         # 3. Run

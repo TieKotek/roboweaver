@@ -28,6 +28,7 @@ class BaseRobotController(ABC):
         self.base_quat = base_quat if base_quat is not None else np.array([1, 0, 0, 0]) # w, x, y, z
         self.emergency_stop_flag = False
         self.control_dt = 0.01
+        self.execution_state = None
         
         self.log_file = None
         if log_dir:
@@ -45,6 +46,9 @@ class BaseRobotController(ABC):
             timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
             self.log_file.write(f"[{timestamp}] {message}\n")
             self.log_file.flush()
+
+    def set_execution_state(self, execution_state) -> None:
+        self.execution_state = execution_state
 
     def execute_action(self, action_config: Dict[str, Any], print_state: bool = False):
         """
@@ -124,6 +128,16 @@ class BaseRobotController(ABC):
         while self.data.time - start_sim_time < duration:
             if self.emergency_stop_flag: break
             time.sleep(0.001) # Yield CPU to physics thread
+
+    def action_wait(self, robot: str, action_index: int):
+        """Wait until another robot completes a specific action index."""
+        if self.execution_state is None:
+            raise ValueError(f"[{self.robot_name}] Missing execution state for wait action.")
+        self.execution_state.validate_wait_target(robot, action_index)
+        while not self.execution_state.is_action_complete(robot, action_index):
+            if self.emergency_stop_flag:
+                break
+            time.sleep(0.001)
 
     def action_emergency_stop(self):
         """Universal E-Stop."""
