@@ -7,11 +7,11 @@
         "type": "box",
         "size": [
           0.04,
-          0.03,
-          0.02
+          0.02,
+          0.01
         ],
         "pos": [
-          0.0,
+          0.16,
           0.0,
           0.125
         ],
@@ -37,7 +37,7 @@
       "type": "conveyor",
       "length": 2.0,
       "width": 0.2,
-      "height": 0.1,
+      "height": 0.05,
       "base_pos": [
         0.25,
         0.0,
@@ -64,7 +64,7 @@
           "action": "run",
           "parameters": {
             "speed": 15.0,
-            "duration": 4.0
+            "duration": 5.0
           },
           "description": "Move cargo to arm3 and arm4"
         },
@@ -88,7 +88,7 @@
           "action": "run",
           "parameters": {
             "speed": 15.0,
-            "duration": 3.0
+            "duration": 5.0
           },
           "description": "Resume conveyor after arm3 and arm4"
         }

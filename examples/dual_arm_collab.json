@@ -262,7 +262,7 @@
         "base_pos": [0.0, 0.2, 0.0],
         "base_yaw": 90.0,
         "sequence": [
-            { "action": "idle", "parameters": { "duration": 30 } },
+            { "action": "wait", "parameters": { "robot": "grB1", "action_index": 8 } },
             { "action": "move_straight", "parameters": { "distance": 0.4, "direction": "forward" } }
         ]
     },
@@ -272,7 +272,7 @@
         "base_pos": [0.8, 0.2, 0.0],
         "base_yaw": 90.0,
         "sequence": [
-            { "action": "idle", "parameters": { "duration": 30 } },
+            { "action": "wait", "parameters": { "robot": "grA1", "action_index": 8 } },
             { "action": "move_straight", "parameters": { "distance": 0.4, "direction": "forward" } }
         ]
     },
@@ -291,8 +291,8 @@
                 "description": "Move to starting position"
             },
             {
-                "action": "idle",
-                "parameters": { "duration": 30.0 }
+                "action": "wait",
+                "parameters": { "robot": "c1", "action_index": 1 }
             },
             {
                 "action": "open_gripper",
@@ -381,8 +381,8 @@
                 "description": "Move to starting position"
             },
             {
-                "action": "idle",
-                "parameters": { "duration": 30.0 }
+                "action": "wait",
+                "parameters": { "robot": "c2", "action_index": 1 }
             },
             {
                 "action": "open_gripper",
@@ -411,8 +411,8 @@
                 "description": "Move to starting position"
             },
             {
-                "action": "idle",
-                "parameters": { "duration": 18.0 }
+                "action": "wait",
+                "parameters": { "robot": "grA3", "action_index": 9 }
             },
             {
                 "action": "move_cartesian",
