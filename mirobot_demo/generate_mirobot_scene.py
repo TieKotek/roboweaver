@@ -9,6 +9,11 @@ import json
 import math
 from pathlib import Path
 import re
+import xml.etree.ElementTree as ET
+
+import ikpy.chain
+import numpy as np
+from scipy.spatial.transform import Rotation as R
 
 
 AXES = ("X", "Y", "Z", "A", "B", "C")
@@ -20,6 +25,15 @@ class ParserConfig:
     minimum_motion_duration_sec: float = 0.5
     tool_engage_wait_sec: float = 0.8
     tool_release_wait_sec: float = 0.5
+    g00_joint_speed_deg_per_sec: tuple[float, ...] = (
+        2000.0 / 60.0,
+        2500.0 / 60.0,
+        2000.0 / 60.0,
+        3000.0 / 60.0,
+        1500.0 / 60.0,
+        2000.0 / 60.0,
+    )
+    g00_joint_accel_deg_per_sec2: tuple[float, ...] = (150.0, 150.0, 50.0, 80.0, 80.0, 50.0)
 
 
 @dataclass
@@ -44,6 +58,88 @@ class ParserState:
         default_factory=lambda: {"X": 0.0, "Y": 0.0, "Z": 0.0, "A": 0.0, "B": 0.0, "C": 0.0}
     )
     base_pos_m: list[float] = field(default_factory=list)
+    current_joints: np.ndarray = field(default_factory=lambda: np.zeros(6, dtype=float))
+
+
+class OfflineMirobotKinematics:
+    """Offline IK helper for duration estimation in the scene generator."""
+
+    def __init__(self, urdf_path: Path):
+        root = ET.parse(urdf_path).getroot()
+        joint_count = sum(1 for joint in root.findall("joint") if joint.get("type") != "fixed")
+        active_links_mask = [False] + [True] * joint_count
+        self.chain = ikpy.chain.Chain.from_urdf_file(str(urdf_path), active_links_mask=active_links_mask)
+        self.link_count = len(self.chain.links)
+        self.seeds: list[np.ndarray] = []
+        self._init_seeds()
+
+    def _full_joints(self, joints: np.ndarray) -> np.ndarray:
+        full = np.zeros(self.link_count)
+        full[1 : 1 + len(joints)] = joints
+        return full
+
+    def _init_seeds(self) -> None:
+        seed_points = ([0.15, 0.0, 0.18], [0.10, 0.10, 0.15], [0.10, -0.10, 0.15])
+        dummy_rot = np.eye(3)
+        initial_guess = np.zeros(self.link_count)
+
+        for point in seed_points:
+            target = np.eye(4)
+            target[:3, 3] = point
+            target[:3, :3] = dummy_rot
+            try:
+                self.seeds.append(self.chain.inverse_kinematics_frame(target, initial_position=initial_guess))
+            except Exception:
+                continue
+
+    def inverse_kinematics(self, target_pose_local_m: np.ndarray, current_joints: np.ndarray) -> np.ndarray | None:
+        pos = target_pose_local_m[:3]
+        rot = R.from_euler("xyz", target_pose_local_m[3:], degrees=True).as_matrix()
+        target_mat = np.eye(4)
+        target_mat[:3, :3] = rot
+        target_mat[:3, 3] = pos
+
+        candidates_to_try = [self._full_joints(current_joints), *self.seeds, np.zeros(self.link_count)]
+        best_sol = None
+        best_error = float("inf")
+
+        for initial_guess in candidates_to_try:
+            try:
+                sol = self.chain.inverse_kinematics_frame(
+                    target=target_mat,
+                    initial_position=initial_guess,
+                    orientation_mode="all",
+                )
+                fk_mat = self.chain.forward_kinematics(sol)
+                pos_error = np.linalg.norm(fk_mat[:3, 3] - pos)
+                if pos_error < best_error:
+                    best_error = pos_error
+                    best_sol = sol
+                if best_error < 0.01:
+                    break
+            except Exception:
+                continue
+
+        if best_sol is None:
+            return None
+        return best_sol[1:7]
+
+
+KINEMATICS = OfflineMirobotKinematics(Path(__file__).resolve().parents[1] / "robots" / "mirobot_control" / "mirobot.urdf")
+
+
+def _trapezoidal_axis_time(distance_deg: float, max_speed_deg_per_sec: float, max_accel_deg_per_sec2: float) -> float:
+    if distance_deg <= 0:
+        return 0.0
+
+    critical_distance_deg = (max_speed_deg_per_sec**2) / max_accel_deg_per_sec2
+    if distance_deg >= critical_distance_deg:
+        accel_time = max_speed_deg_per_sec / max_accel_deg_per_sec2
+        cruise_distance = distance_deg - critical_distance_deg
+        cruise_time = cruise_distance / max_speed_deg_per_sec
+        return (2.0 * accel_time) + cruise_time
+
+    return 2.0 * math.sqrt(distance_deg / max_accel_deg_per_sec2)
 
 
 def parse_command_token(raw: str) -> ParsedCommand:
@@ -121,7 +217,38 @@ def convert_motion_command(parsed: ParsedCommand, state: ParserState, config: Pa
     translation_time = distance_mm / feed_rate * 60.0 if distance_mm > 0 else 0.0
     orientation_delta = max(abs(target_axes[axis] - state.current_axes[axis]) for axis in ("A", "B", "C"))
     orientation_time = orientation_delta / config.angular_speed_deg_per_sec if orientation_delta > 0 else 0.0
-    duration = max(translation_time, orientation_time, config.minimum_motion_duration_sec)
+    target_pose_local_m = np.array(
+        [
+            target_axes["X"] / 1000.0,
+            target_axes["Y"] / 1000.0,
+            target_axes["Z"] / 1000.0,
+            target_axes["A"],
+            target_axes["B"],
+            target_axes["C"],
+        ],
+        dtype=float,
+    )
+
+    if parsed.motion == "G00":
+        target_joints = KINEMATICS.inverse_kinematics(target_pose_local_m, state.current_joints)
+        if target_joints is None:
+            raise ValueError(f"[{state.robot_name}] Offline IK failed for G00 target: {parsed.raw}")
+        joint_delta_deg = np.degrees(np.abs(target_joints - state.current_joints))
+        joint_times = [
+            _trapezoidal_axis_time(distance_deg, speed_deg_per_sec, accel_deg_per_sec2)
+            for distance_deg, speed_deg_per_sec, accel_deg_per_sec2 in zip(
+                joint_delta_deg,
+                config.g00_joint_speed_deg_per_sec,
+                config.g00_joint_accel_deg_per_sec2,
+            )
+        ]
+        duration = max(max(joint_times, default=0.0), config.minimum_motion_duration_sec)
+        state.current_joints = target_joints
+    else:
+        duration = max(translation_time, orientation_time, config.minimum_motion_duration_sec)
+        target_joints = KINEMATICS.inverse_kinematics(target_pose_local_m, state.current_joints)
+        if target_joints is not None:
+            state.current_joints = target_joints
 
     pose = [
         round(state.base_pos_m[0] + target_axes["X"] / 1000.0, 6),

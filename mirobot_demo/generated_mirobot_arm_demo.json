@@ -76,7 +76,7 @@
               0.0,
               0.0
             ],
-            "duration": 5.3574238212036205
+            "duration": 2.8023045285909305
           },
           "description": "Converted G00 command"
         },
@@ -117,7 +117,7 @@
               0.0,
               0.0
             ],
-            "duration": 2.61
+            "duration": 1.7236649086536078
           },
           "description": "Converted G00 command"
         },
@@ -134,7 +134,7 @@
               21.36,
               51.68
             ],
-            "duration": 3.9820674906385
+            "duration": 3.1397912074825376
           },
           "description": "Converted G00 command"
         },
@@ -151,7 +151,7 @@
               0.0,
               90.0
             ],
-            "duration": 5.971626788405318
+            "duration": 3.357279795548338
           },
           "description": "Converted G00 command"
         },
@@ -168,7 +168,7 @@
               3.9,
               90.0
             ],
-            "duration": 0.5829811317701455
+            "duration": 0.6843615457145271
           },
           "description": "Converted G00 command"
         },
@@ -192,7 +192,7 @@
               0.0,
               0.0
             ],
-            "duration": 9.089612313514806
+            "duration": 5.879729049426359
           },
           "description": "Converted G00 command"
         }
@@ -220,7 +220,7 @@
               -25.0,
               -90.0
             ],
-            "duration": 8.028854214643582
+            "duration": 1.9514729394194466
           },
           "description": "Converted G00 command"
         },
@@ -237,7 +237,7 @@
               -25.0,
               -90.0
             ],
-            "duration": 3.117691453623979
+            "duration": 1.9497814489507723
           },
           "description": "Converted G00 command"
         },
@@ -254,7 +254,7 @@
               -25.0,
               -90.0
             ],
-            "duration": 0.75
+            "duration": 0.6980948256252126
           },
           "description": "Converted G00 command"
         },
@@ -271,7 +271,7 @@
               -30.7,
               -100.15
             ],
-            "duration": 1.8778681822747836
+            "duration": 1.2694956484900748
           },
           "description": "Converted G00 command"
         },
@@ -288,7 +288,7 @@
               -25.0,
               -90.0
             ],
-            "duration": 3.1877833850498685
+            "duration": 1.495747028919666
           },
           "description": "Converted G00 command"
         },
@@ -319,7 +319,7 @@
               -25.0,
               -90.0
             ],
-            "duration": 2.02338824747007
+            "duration": 1.5323888216583519
           },
           "description": "Converted G00 command"
         },
@@ -336,7 +336,7 @@
               0.0,
               0.0
             ],
-            "duration": 8.572594823622541
+            "duration": 3.2171149738668463
           },
           "description": "Converted G00 command"
         }
@@ -364,7 +364,7 @@
               -25.0,
               90.0
             ],
-            "duration": 8.028854214643582
+            "duration": 1.9487131177138781
           },
           "description": "Converted G00 command"
         },
@@ -381,7 +381,7 @@
               -25.0,
               90.0
             ],
-            "duration": 3.117691453623979
+            "duration": 1.9504046082524158
           },
           "description": "Converted G00 command"
         },
@@ -398,7 +398,7 @@
               -25.0,
               90.0
             ],
-            "duration": 0.75
+            "duration": 0.6980948176267671
           },
           "description": "Converted G00 command"
         },
@@ -415,7 +415,7 @@
               -25.0,
               90.0
             ],
-            "duration": 2.127463278178968
+            "duration": 1.5715165522283283
           },
           "description": "Converted G00 command"
         },
@@ -446,7 +446,7 @@
               -25.0,
               90.0
             ],
-            "duration": 2.02338824747007
+            "duration": 1.5323888554717155
           },
           "description": "Converted G00 command"
         },
@@ -463,7 +463,7 @@
               0.0,
               0.0
             ],
-            "duration": 7.324822319346729
+            "duration": 2.627329413642315
           },
           "description": "Converted G00 command"
         }
