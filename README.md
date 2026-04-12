@@ -48,6 +48,10 @@
    ```bash
    python run_robots.py examples/franka_arm_demo.json --headless
    ```
+5. Export an MP4 with offscreen rendering:
+   ```bash
+   python run_robots.py examples/skydio_drone_demo.json --save-video logs/skydio.mp4 --camera track
+   ```
 
 ### Configuration Guide
 

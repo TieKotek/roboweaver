@@ -79,6 +79,14 @@ class NamedCameraLookupTests(unittest.TestCase):
 
         self.assertEqual(get_named_camera_id(model, "track"), 1)
 
+    def test_accepts_unique_suffix_match_for_prefixed_camera_names(self):
+        model = SimpleNamespace(
+            ncam=2,
+            cam=lambda index: SimpleNamespace(name=["drone1_track", "arm_cam"][index]),
+        )
+
+        self.assertEqual(get_named_camera_id(model, "track"), 0)
+
     def test_lists_available_camera_names_for_missing_camera(self):
         model = SimpleNamespace(
             ncam=1,
