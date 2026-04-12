@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from common.differential_drive_controller import DifferentialDriveController
+from robot_common.differential_drive_controller import DifferentialDriveController
 from robots.rbtheron_control.rbtheron_controller import RbtheronController
 from robots.tracer_control.tracer_controller import TracerController
 

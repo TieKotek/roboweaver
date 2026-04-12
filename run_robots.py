@@ -19,7 +19,7 @@ import math
 from typing import Dict, Any, List, Set
 
 # --- Robot Registry ---
-from common.robot_api import BaseRobotController
+from robot_common.robot_api import BaseRobotController
 from robots.piper_control.piper_controller import PiperController
 from robots.rbtheron_control.rbtheron_controller import RbtheronController
 from robots.tracer_control.tracer_controller import TracerController

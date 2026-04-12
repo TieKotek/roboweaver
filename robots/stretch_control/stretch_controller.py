@@ -6,7 +6,7 @@ from typing import Dict
 import mujoco
 import numpy as np
 
-from common.robot_api import BaseRobotController, RobotState
+from robot_common.robot_api import BaseRobotController, RobotState
 
 
 @dataclass

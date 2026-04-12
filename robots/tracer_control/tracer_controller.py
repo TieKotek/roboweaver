@@ -1,6 +1,6 @@
 import mujoco
 
-from common.differential_drive_controller import DifferentialDriveController
+from robot_common.differential_drive_controller import DifferentialDriveController
 
 
 class TracerController(DifferentialDriveController):

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import numpy as np
 import mujoco
 
-from common.robot_api import BaseRobotController, RobotState
+from robot_common.robot_api import BaseRobotController, RobotState
 
 
 @dataclass

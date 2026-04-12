@@ -2,7 +2,7 @@ import time
 import numpy as np
 import mujoco
 from scipy.spatial.transform import Rotation as R
-from common.robot_api import BaseRobotController, RobotState
+from robot_common.robot_api import BaseRobotController, RobotState
 from dataclasses import dataclass
 
 @dataclass

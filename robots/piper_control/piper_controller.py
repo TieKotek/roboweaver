@@ -11,7 +11,7 @@ from scipy.spatial.transform import Rotation as R, Slerp
 from typing import Optional, Tuple, List
 
 # Import the common interface
-from common.robot_api import BaseRobotController, RobotState
+from robot_common.robot_api import BaseRobotController, RobotState
 from dataclasses import dataclass
 
 @dataclass

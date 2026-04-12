@@ -8,7 +8,7 @@ import mujoco
 import numpy as np
 from scipy.spatial.transform import Rotation as R, Slerp
 
-from common.robot_api import BaseRobotController, RobotState
+from robot_common.robot_api import BaseRobotController, RobotState
 
 
 @dataclass
