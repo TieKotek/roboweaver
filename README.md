@@ -50,7 +50,7 @@
    ```
 5. Export an MP4 with offscreen rendering:
    ```bash
-   python run_robots.py examples/skydio_drone_demo.json --save-video logs/skydio.mp4 --camera track
+   python run_robots.py examples/skydio_drone_demo.json --save-video logs/skydio.mp4 --camera-zoom-out 1.5
    ```
 
 ### Configuration Guide

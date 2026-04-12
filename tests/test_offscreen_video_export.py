@@ -9,9 +9,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from run_robots import (
     SimulationTimeVideoScheduler,
     build_arg_parser,
+    configure_export_camera,
     create_video_writer,
     describe_video_dimension_adjustment,
-    get_named_camera_id,
     normalize_video_dimensions,
     should_launch_viewer,
     validate_video_export_args,
@@ -19,25 +19,24 @@ from run_robots import (
 
 
 class VideoExportArgValidationTests(unittest.TestCase):
-    def test_requires_camera_when_save_video_enabled(self):
+    def test_allows_video_export_without_named_camera(self):
         args = argparse.Namespace(
             save_video="logs/test.mp4",
-            camera=None,
             video_fps=30.0,
             width=1280,
             height=720,
+            camera_zoom_out=1.5,
         )
 
-        with self.assertRaisesRegex(ValueError, "camera"):
-            validate_video_export_args(args)
+        validate_video_export_args(args)
 
     def test_rejects_non_positive_video_fps(self):
         args = argparse.Namespace(
             save_video="logs/test.mp4",
-            camera="track",
             video_fps=0.0,
             width=1280,
             height=720,
+            camera_zoom_out=1.5,
         )
 
         with self.assertRaisesRegex(ValueError, "video-fps"):
@@ -46,13 +45,25 @@ class VideoExportArgValidationTests(unittest.TestCase):
     def test_rejects_non_positive_dimensions(self):
         args = argparse.Namespace(
             save_video="logs/test.mp4",
-            camera="track",
             video_fps=30.0,
             width=0,
             height=720,
+            camera_zoom_out=1.5,
         )
 
         with self.assertRaisesRegex(ValueError, "width"):
+            validate_video_export_args(args)
+
+    def test_rejects_non_positive_camera_zoom_out(self):
+        args = argparse.Namespace(
+            save_video="logs/test.mp4",
+            video_fps=30.0,
+            width=1280,
+            height=720,
+            camera_zoom_out=0.0,
+        )
+
+        with self.assertRaisesRegex(ValueError, "camera-zoom-out"):
             validate_video_export_args(args)
 
 
@@ -76,57 +87,30 @@ class SimulationTimeSchedulerTests(unittest.TestCase):
         self.assertEqual(emitted, [0.5, 1.0])
 
 
-class NamedCameraLookupTests(unittest.TestCase):
-    def test_returns_camera_id_for_existing_name(self):
-        model = SimpleNamespace(
-            ncam=2,
-            cam=lambda index: SimpleNamespace(name=["front", "track"][index]),
-        )
-
-        self.assertEqual(get_named_camera_id(model, "track"), 1)
-
-    def test_accepts_unique_suffix_match_for_prefixed_camera_names(self):
-        model = SimpleNamespace(
-            ncam=2,
-            cam=lambda index: SimpleNamespace(name=["drone1_track", "arm_cam"][index]),
-        )
-
-        self.assertEqual(get_named_camera_id(model, "track"), 0)
-
-    def test_lists_available_camera_names_for_missing_camera(self):
-        model = SimpleNamespace(
-            ncam=1,
-            cam=lambda index: SimpleNamespace(name="track"),
-        )
-
-        with self.assertRaisesRegex(ValueError, "track"):
-            get_named_camera_id(model, "missing")
-
-
 class ArgParserTests(unittest.TestCase):
-    def test_parser_accepts_video_export_options(self):
+    def test_parser_accepts_default_camera_export_options(self):
         parser = build_arg_parser()
         args = parser.parse_args(
             [
                 "examples/skydio_drone_demo.json",
                 "--save-video",
                 "logs/out.mp4",
-                "--camera",
-                "track",
                 "--video-fps",
                 "24",
                 "--width",
                 "640",
                 "--height",
                 "360",
+                "--camera-zoom-out",
+                "1.75",
             ]
         )
 
         self.assertEqual(args.save_video, "logs/out.mp4")
-        self.assertEqual(args.camera, "track")
         self.assertEqual(args.video_fps, 24.0)
         self.assertEqual(args.width, 640)
         self.assertEqual(args.height, 360)
+        self.assertEqual(args.camera_zoom_out, 1.75)
 
 
 class VideoWriterFactoryTests(unittest.TestCase):
@@ -152,6 +136,18 @@ class VideoDimensionAdjustmentMessageTests(unittest.TestCase):
 
     def test_returns_none_when_no_adjustment_is_needed(self):
         self.assertIsNone(describe_video_dimension_adjustment(640, 368, 640, 368))
+
+
+class ExportCameraConfigTests(unittest.TestCase):
+    def test_build_export_camera_scales_distance_only(self):
+        camera = SimpleNamespace(distance=4.0, azimuth=120.0, elevation=-20.0)
+
+        configured = configure_export_camera(camera, 1.5)
+
+        self.assertIs(configured, camera)
+        self.assertEqual(configured.distance, 6.0)
+        self.assertEqual(configured.azimuth, 120.0)
+        self.assertEqual(configured.elevation, -20.0)
 
 
 class ViewerLaunchPolicyTests(unittest.TestCase):

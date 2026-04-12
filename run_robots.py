@@ -99,21 +99,26 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--video-fps", type=float, default=30.0, help="Frame rate for exported video.")
     parser.add_argument("--width", type=int, default=1280, help="Export video width in pixels.")
     parser.add_argument("--height", type=int, default=720, help="Export video height in pixels.")
-    parser.add_argument("--camera", help="Named MuJoCo camera used for video export.")
+    parser.add_argument(
+        "--camera-zoom-out",
+        type=float,
+        default=1.5,
+        help="Distance multiplier applied to the default export free camera.",
+    )
     return parser
 
 
 def validate_video_export_args(args) -> None:
     if not getattr(args, "save_video", None):
         return
-    if not getattr(args, "camera", None):
-        raise ValueError("video export requires --camera")
     if getattr(args, "video_fps", 0.0) <= 0.0:
         raise ValueError("video export requires positive --video-fps")
     if getattr(args, "width", 0) <= 0:
         raise ValueError("video export requires positive --width")
     if getattr(args, "height", 0) <= 0:
         raise ValueError("video export requires positive --height")
+    if getattr(args, "camera_zoom_out", 0.0) <= 0.0:
+        raise ValueError("video export requires positive --camera-zoom-out")
 
 
 def normalize_video_dimensions(width: int, height: int, block_size: int = 16) -> tuple[int, int]:
@@ -155,29 +160,9 @@ class SimulationTimeVideoScheduler:
         self.next_frame_time += self.frame_interval
 
 
-def list_named_cameras(model) -> List[str]:
-    names = []
-    for index in range(model.ncam):
-        camera = model.cam(index)
-        if getattr(camera, "name", None):
-            names.append(camera.name)
-    return names
-
-
-def get_named_camera_id(model, camera_name: str) -> int:
-    available = list_named_cameras(model)
-    for index, name in enumerate(available):
-        if name == camera_name:
-            return index
-    suffix_matches = [
-        index for index, name in enumerate(available)
-        if name.endswith(f"_{camera_name}")
-    ]
-    if len(suffix_matches) == 1:
-        return suffix_matches[0]
-    raise ValueError(
-        f"unknown camera '{camera_name}'. Available cameras: {', '.join(available) or '<none>'}"
-    )
+def configure_export_camera(camera, zoom_out: float):
+    camera.distance *= zoom_out
+    return camera
 
 
 def create_video_writer(output_path: str, video_fps: float, force_missing_dependency: bool = False):
@@ -746,7 +731,9 @@ def main():
         export_enabled = bool(args.save_video)
         export_camera = None
         if export_enabled:
-            export_camera = get_named_camera_id(model, args.camera)
+            export_camera = mujoco.MjvCamera()
+            mujoco.mjv_defaultFreeCamera(model, export_camera)
+            configure_export_camera(export_camera, args.camera_zoom_out)
             video_width, video_height = normalize_video_dimensions(args.width, args.height)
             adjustment_message = describe_video_dimension_adjustment(
                 args.width,
